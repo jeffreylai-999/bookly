@@ -1,0 +1,7 @@
+# All multi-table mutations go through SECURITY DEFINER RPCs; direct table writes are revoked
+
+Flow-critical tables (`loans`, `holds`, `fines`, `payments`, plus `copies.status` / `members.status` / `audit_log` / `notifications` inserts) reject direct writes from the `authenticated` role entirely — INSERT/UPDATE/DELETE revoked, with column-level grants excluding `status` on the staff-editable aggregates. The only mutation path is `GRANT EXECUTE` on SECURITY DEFINER Postgres functions (`checkout`, `checkin`, `renew_loan`, `place_hold`, …) that re-validate business rules, apply all row changes, and write audit + notification rows in one transaction.
+
+This deviates from the Supabase norm (RLS policies + direct PostgREST table access) deliberately: the business rules span multiple tables per action, and RLS cannot express "a loan insert must also flip the copy status, check the borrow cap, and append an audit row atomically." With direct writes open, a staff JWT talking straight to PostgREST could skip rules, audit, or notifications. The trade-off is more SQL to maintain and test (SQL test file against the local Supabase stack) in exchange for an API surface where the invariants physically cannot be bypassed.
+
+Consequences: repositories call `.rpc()` for every flow mutation; UI-side rule checks are UX only, never enforcement; every definer sets `SET search_path = ''` and admin-gated branches assert `role = 'admin'` in the function body (definers bypass RLS, so policies alone protect nothing).

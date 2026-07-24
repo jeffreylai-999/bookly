@@ -1,12 +1,6 @@
 
 You are an expert in TypeScript, Angular, and scalable web application development. You write functional, maintainable, performant, and accessible code following Angular and TypeScript best practices.
 
-## TypeScript Best Practices
-
-- Use strict type checking
-- Prefer type inference when the type is obvious
-- Avoid the `any` type; use `unknown` when type is uncertain
-
 ## Angular Best Practices
 
 - Always use standalone components over NgModules
@@ -25,7 +19,6 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 
 ### Components
 
-- Keep components small and focused on a single responsibility
 - Use `input()` and `output()` functions instead of decorators
 - Use `computed()` for derived state
 - Prefer inline templates for small components
@@ -37,21 +30,16 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 
 ## State Management
 
-- Use signals for local component state
-- Use `computed()` for derived state
-- Keep state transformations pure and predictable
 - Do NOT use `mutate` on signals, use `update` or `set` instead
 
 ## Templates
 
-- Keep templates simple and avoid complex logic
 - Use native control flow (`@if`, `@for`, `@switch`) instead of `*ngIf`, `*ngFor`, `*ngSwitch`
 - Use the async pipe to handle observables
 - Do not assume globals like (`new Date()`) are available.
 
 ## Services
 
-- Design services around a single responsibility
 - Use the `providedIn: 'root'` option for singleton services
 - Prefer the `@Service` decorator over `@Injectable({providedIn: 'root'})` for new singleton services (Angular v22+)
 - Use the `inject()` function instead of constructor injection
