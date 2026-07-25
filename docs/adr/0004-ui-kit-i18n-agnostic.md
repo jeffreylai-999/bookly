@@ -1,0 +1,5 @@
+# UI kit is i18n-agnostic — strings via inputs, never translation keys
+
+Every user-visible string in `src/app/ui/` components — labels, placeholders, aria-labels, the pagination summary — is an `input()` with an English default. Kit components never import Transloco or reference translation keys; feature screens translate at the call site and pass the resulting strings in.
+
+This looks like it contradicts ADR-0003 ("all UI strings are Transloco translation keys from the first component onward") but preserves its intent: no string in the kit is unreachable prose, since every one is overridable where the keys live. The alternative — Transloco keys inside the kit — was rejected because it couples a generic, reusable UI layer to the app's i18n runtime and key namespace, and forces the kit's tests and styleguide to bootstrap a translation loader. The kit is a generic subdomain; domain and locale knowledge stay above it. English defaults are acceptable because v1 ships English only (per ADR-0003) and the defaults double as API documentation.
