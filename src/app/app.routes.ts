@@ -1,3 +1,8 @@
 import { Routes } from '@angular/router';
 
-export const routes: Routes = [];
+export const routes: Routes = [
+  {
+    path: 'styleguide',
+    loadComponent: () => import('./styleguide/styleguide').then((m) => m.Styleguide),
+  },
+];
