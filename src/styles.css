@@ -1,0 +1,114 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Gilroy', Arial, Helvetica, sans-serif;
+
+  /* Surfaces & text (DESIGN.md §1.1) */
+  --color-brand: #039db7;
+  --color-brand-dark: #027a8f;
+  --color-accent-pink: #e2408e;
+  --color-ink: #1b2533;
+  --color-ink-heading: #2e3b4e;
+  --color-ink-muted: #6b7687;
+  --color-ink-soft: #3a4556;
+  --color-canvas: #f5f7fa;
+  --color-surface: #ffffff;
+  --color-line: #d9dee6;
+  --color-divider: #eaeef3;
+  --color-row-hover: #f8fafc;
+  --color-control: #eef2f7;
+  --color-control-hover: #f0f3f7;
+  --color-disabled: #c7ceda;
+
+  /* Semantic & chart */
+  --color-success: #1a754d;
+  --color-danger: #be2539;
+  --color-warning: #a66812;
+  --color-chart-teal: #039db7;
+  --color-chart-cyan: #45bbce;
+  --color-chart-amber: #f0b94a;
+  --color-chart-purple: #7c59d3;
+
+  /* Badge pairs (§1.2) */
+  --color-badge-green-bg: #e3f3eb;
+  --color-badge-green-text: #1a754d;
+  --color-badge-amber-bg: #fcefdc;
+  --color-badge-amber-text: #935c10;
+  --color-badge-red-bg: #fbe3e7;
+  --color-badge-red-text: #be2539;
+  --color-badge-cyan-bg: #e5f6f9;
+  --color-badge-cyan-text: #027a8f;
+  --color-badge-neutral-bg: #eef2f7;
+  --color-badge-neutral-text: #3a4556;
+  --color-badge-pink-bg: #fce4f0;
+  --color-badge-pink-text: #b9266e;
+  --color-badge-purple-bg: rgba(124, 89, 211, 0.14);
+  --color-badge-purple-text: #5b3db8;
+
+  /* Radius & elevation (§1.4) */
+  --radius-card: 16px;
+  --shadow-toast: 0 24px 64px rgba(27, 37, 51, 0.14);
+  --shadow-tab: 0 1px 2px rgba(27, 37, 51, 0.08);
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/fonts/gilroy-regular.otf') format('opentype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/fonts/gilroy-medium.otf') format('opentype');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/fonts/gilroy-semibold.otf') format('opentype');
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/fonts/gilroy-bold.otf') format('opentype');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/fonts/gilroy-extrabold.otf') format('opentype');
+  font-weight: 800;
+  font-display: swap;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-line);
+    border-radius: 8px;
+  }
+}
+
+/* Teal focus ring (§1.4) — light and dark-sidebar variants */
+@utility focus-ring {
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgb(3 157 183 / 0.32);
+  }
+}
+@utility focus-ring-dark {
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgb(3 157 183 / 0.45);
+  }
+}
