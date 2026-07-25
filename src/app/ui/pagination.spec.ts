@@ -5,10 +5,11 @@ import { UiPagination, pageCount, pageRange } from './pagination';
 
 @Component({
   imports: [UiPagination],
-  template: `<ui-pagination [(page)]="page" [pageSize]="10" [total]="42" />`,
+  template: `<ui-pagination [(page)]="page" [pageSize]="10" [total]="total()" />`,
 })
 class Host {
   page = signal(1);
+  total = signal(42);
 }
 
 describe('pagination math', () => {
@@ -50,5 +51,27 @@ describe('UiPagination', () => {
     await fixture.whenStable();
     expect(fixture.componentInstance.page()).toBe(2);
     expect(page2.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('clamps a bound page left out of range when total shrinks', async () => {
+    const fixture = TestBed.createComponent(Host);
+    const host = fixture.componentInstance;
+    host.page.set(4);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Showing 31–40 of 42');
+
+    // Filtering collapses the result set to one page while page is still 4.
+    host.total.set(5);
+    await fixture.whenStable();
+    expect(el.textContent).toContain('Showing 1–5 of 5');
+    const onlyPage = Array.from(el.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === '1',
+    )!;
+    expect(onlyPage.getAttribute('aria-current')).toBe('page');
+    expect((el.querySelector('[aria-label="Previous page"]') as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect((el.querySelector('[aria-label="Next page"]') as HTMLButtonElement).disabled).toBe(true);
   });
 });

@@ -25,8 +25,8 @@ export function pageRange(
       <button
         type="button"
         class="flex size-[30px] cursor-pointer items-center justify-center rounded-lg text-[13px] font-bold focus-ring border border-line bg-surface text-ink-soft disabled:cursor-default disabled:text-disabled"
-        [disabled]="page() <= 1"
-        (click)="go(page() - 1)"
+        [disabled]="safePage() <= 1"
+        (click)="go(safePage() - 1)"
         [attr.aria-label]="prevLabel()"
       >
         <lucide-angular name="chevron-left" [size]="16" />
@@ -36,11 +36,11 @@ export function pageRange(
           type="button"
           class="flex size-[30px] cursor-pointer items-center justify-center rounded-lg text-[13px] font-bold focus-ring"
           [class]="
-            p === page()
+            p === safePage()
               ? 'border-0 bg-brand text-white'
               : 'border border-line bg-surface text-ink-soft'
           "
-          [attr.aria-current]="p === page() ? 'page' : null"
+          [attr.aria-current]="p === safePage() ? 'page' : null"
           (click)="go(p)"
         >
           {{ p }}
@@ -49,8 +49,8 @@ export function pageRange(
       <button
         type="button"
         class="flex size-[30px] cursor-pointer items-center justify-center rounded-lg text-[13px] font-bold focus-ring border border-line bg-surface text-ink-soft disabled:cursor-default disabled:text-disabled"
-        [disabled]="page() >= count()"
-        (click)="go(page() + 1)"
+        [disabled]="safePage() >= count()"
+        (click)="go(safePage() + 1)"
         [attr.aria-label]="nextLabel()"
       >
         <lucide-angular name="chevron-right" [size]="16" />
@@ -77,9 +77,18 @@ export class UiPagination {
   protected readonly pages = computed(() =>
     Array.from({ length: this.count() }, (_, i) => i + 1),
   );
-  protected readonly range = computed(() => pageRange(this.page(), this.pageSize(), this.total()));
+  /**
+   * `page` is a model the consumer owns, so it can fall out of range when
+   * `total` shrinks under it (filtering a list while on a later page). Every
+   * rendered and navigated value derives from this clamp, so the summary,
+   * aria-current, and prev/next state stay consistent with `count()`.
+   */
+  protected readonly safePage = computed(() => Math.min(Math.max(1, this.page()), this.count()));
+  protected readonly range = computed(() =>
+    pageRange(this.safePage(), this.pageSize(), this.total()),
+  );
 
   protected go(p: number): void {
-    if (p >= 1 && p <= this.count() && p !== this.page()) this.page.set(p);
+    if (p >= 1 && p <= this.count() && p !== this.safePage()) this.page.set(p);
   }
 }

@@ -11,13 +11,13 @@ A reusable, extensible set of common Angular components implementing the Bookly 
 ## Constraints & decisions
 
 - **Angular 22**, standalone components, signal `input()`/`output()`, inline templates, no NgModules — per `docs/angular-style.md`.
-- **Tailwind CSS v4** via `@tailwindcss/postcss`. CSS-first config: design tokens declared in `@theme` in `src/styles.scss`. No `tailwind.config.js`.
+- **Tailwind CSS v4** via `@tailwindcss/postcss`. CSS-first config: design tokens declared in `@theme` in `src/styles.css`. No `tailwind.config.js`.
 - **Icons:** `lucide-angular` (matches the mockup's lucide/feather stroke style, stroke-width 1.75, sizes 14–19px).
-- **Fonts:** Gilroy OTFs (400/500/600/700/800) copied from `docs/example-design/fonts/` to `public/fonts/`, loaded via `@font-face` in `src/styles.scss`.
+- **Fonts:** Gilroy OTFs (400/500/600/700/800) copied from `docs/example-design/fonts/` to `public/fonts/`, loaded via `@font-face` in `src/styles.css`.
 - **No hex colors inside components** — components reference theme tokens (Tailwind utilities) only. All hex values live once, in `@theme`.
 - **Architecture: hybrid** — attribute directives for style-only primitives (keep native element semantics), components for structural pieces (content projection / internal layout).
 
-## Foundations (`src/styles.scss`)
+## Foundations (`src/styles.css`)
 
 1. `@import "tailwindcss";` (v4 single import via PostCSS).
 2. `@theme` block mapping DESIGN.md §1.1 tokens:
@@ -31,7 +31,7 @@ A reusable, extensible set of common Angular components implementing the Bookly 
 
 ## Kit inventory (`src/app/ui/`)
 
-One folder per unit. Inline templates. Public barrel `src/app/ui/index.ts`.
+One file per unit (`button.ts`, `badge.ts`, …) with its spec beside it. Inline templates. Public barrel `src/app/ui/index.ts`.
 
 | Unit | Form | API |
 |---|---|---|
@@ -40,8 +40,8 @@ One folder per unit. Inline templates. Public barrel `src/app/ui/index.ts`.
 | `ui-card` | component | Optional `title`, `subtitle` inputs; default content slot; optional `actions` slot (header right). §3.1. |
 | `ui-kpi-card` | component | `label`, `value`, `delta?`, `deltaTone: 'good' \| 'bad' \| 'neutral'`, `hero?: boolean` (teal value). §3.2, ▲ glyph. |
 | `ui-table` | component | Generic over row type: `columns: TableColumn<T>[]` (`key`, `header`, `width?`, `align?: 'left' \| 'right'`, `value?: (row: T) => string \| number`), `rows`, `rowKey` (fn). Custom cell rendering via named `ng-template` with `$implicit` row context. Empty state via projected `ui-empty-state`. §3.5 header/body/hover styles. |
-| `ui-pagination` | component | `page` (two-way model, emits `pageChange`), `pageSize`, `total`; label inputs `prevLabel`/`nextLabel`/`navLabel` and `summary` format-fn input (English defaults, ADR-0004). Renders "Showing X–Y of N" + prev/next + numbered buttons, `aria-current="page"`. §3.8. |
-| `ui-segmented` | component | `options: SegmentedOption[]` (`{label, value}`), two-way `value` model. `role="radiogroup"`, arrow-key navigation. §3.6. |
+| `ui-pagination` | component | `page` (two-way model, emits `pageChange`), `pageSize`, `total`; label inputs `prevLabel`/`nextLabel`/`navLabel` and `summary` format-fn input (English defaults, ADR-0004). The rendered page is clamped to `[1, pageCount]`, so a consumer-owned `page` left out of range by a shrinking `total` cannot produce an inverted summary or a dead prev/next button. Renders "Showing X–Y of N" + prev/next + numbered buttons, `aria-current="page"`. §3.8. |
+| `ui-segmented` | component | `options: SegmentedOption[]` (`{label, value}`), two-way `value` model, required `groupLabel` (accessible name — a `radiogroup` without one is an AXE violation). `role="radiogroup"`, arrow-key navigation. §3.6. |
 | `ui-search-input` | component | Two-way `value` model, `placeholder`, `debouncedChange` output (300ms). Magnifier icon absolute-left. §3.7. |
 | `ui-progress` | component | `value`, `max = 100`, `color` (token name union), optional label row (name + value). §3.10. |
 | `ui-avatar` | component | `name` → initials (max 2); deterministic palette cycle from name hash: `brand, accent-pink, chart-purple, chart-cyan, chart-amber, ink-heading`. `size?: number`. Decorative (`aria-hidden`) — always pair with visible text naming the person. §3.12. |

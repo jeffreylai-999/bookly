@@ -37,7 +37,11 @@ export interface SegmentedOption {
 })
 export class UiSegmented {
   readonly options = input.required<SegmentedOption[]>();
-  readonly groupLabel = input<string>();
+  /**
+   * Required: a `radiogroup` with no accessible name is an AXE violation, and
+   * no generic default would describe what the group switches between.
+   */
+  readonly groupLabel = input.required<string>();
   readonly value = model<string>();
   protected readonly selected = computed(() => this.value() ?? this.options()[0]?.value);
   private readonly buttons = viewChildren<ElementRef<HTMLButtonElement>>('tabBtn');

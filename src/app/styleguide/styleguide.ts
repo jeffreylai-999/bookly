@@ -107,7 +107,7 @@ interface DemoLoan {
 
         <ui-card title="Controls">
           <div class="flex flex-col gap-4">
-            <ui-segmented [options]="tabs" [(value)]="tab" />
+            <ui-segmented [options]="tabs" [(value)]="tab" groupLabel="Loan status" />
             <div class="flex items-center gap-3">
               <ui-search-input class="w-72" placeholder="Search titles, authors, ISBN" [(value)]="query" />
               <span class="text-[13px] text-ink-muted">{{ query() ? 'Filtering: ' + query() : 'No filter' }}</span>
