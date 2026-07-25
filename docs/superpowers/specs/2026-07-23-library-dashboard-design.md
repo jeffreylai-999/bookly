@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-23
 **Status:** Approved (brainstorming) → ready for implementation plan
-**Source:** `plans/library-dashboard-plan.md`
+**Source:** `docs/plans/library-dashboard-plan.md`
 **Revised:** 2026-07-23 — gap-fix pass: mutation RPCs + pg_cron execution model, `notifications` table, `overdue_loans` view, hold↔copy link, barcode prefixes, lost/damaged fine basis, payment-void semantics, suspended-vs-blocked, renewal base, server-side pagination, library timezone, testing decision, ngx-charts → ECharts.
 **Revised:** 2026-07-24 — security review pass (`2026-07-23-library-dashboard-review.md`): SECURITY DEFINER RPCs + direct-write revokes, `profiles.role` lockdown, audit_log insert lockdown, checkout copy-status matrix, row-lock concurrency, `place_hold` rules, `mark_ready` RPC, damaged-override as audited param, unique constraints, pg_cron UTC/local-time gating, SSR render modes, env hygiene. Added §10 Localization (Transloco runtime i18n). Verify-pass residuals: `notifications` insert lockdown, `set_copy_status` RPC for Catalog status actions.
 **Revised:** 2026-07-24 (2) — second verify pass: `set_member_status` RPC + column-level `GRANT UPDATE` excluding `status` on members/copies, `log_audit` hardening (actor from `auth.uid()`, action allowlist), partial unique indexes (loans/holds), `checkin` params incl. `fill_hold`, `days_late` in library-local calendar days, overdue-notify anti-join idempotency, `lost_fee_default` fallback, "return" = check-in wording.
