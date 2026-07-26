@@ -6,10 +6,11 @@
   /* Surfaces & text (DESIGN.md §1.1) */
   --color-brand: #039db7;
   --color-brand-dark: #027a8f;
+  --color-brand-strong: #016b7e;
   --color-accent-pink: #e2408e;
   --color-ink: #1b2533;
   --color-ink-heading: #2e3b4e;
-  --color-ink-muted: #6b7687;
+  --color-ink-muted: #616c7d;
   --color-ink-soft: #3a4556;
   --color-canvas: #f5f7fa;
   --color-surface: #ffffff;
@@ -99,16 +100,29 @@
   }
 }
 
-/* Teal focus ring (§1.4) — light and dark-sidebar variants */
+/*
+ * Teal focus ring (§1.4) — light and dark-sidebar variants.
+ *
+ * Two layers, not one translucent layer: WCAG 2.2 SC 1.4.11 wants 3:1 between
+ * the indicator and what surrounds it, and a 32%-alpha teal wash only reaches
+ * 1.44:1 over white. The inner ring matches the local ground so the solid outer
+ * ring reads as a ring rather than a thickened border, and it stays visible on
+ * a teal primary button as well as on white, canvas, and control surfaces
+ * (6.17:1 / 5.75:1 / 5.48:1).
+ */
 @utility focus-ring {
   &:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgb(3 157 183 / 0.32);
+    box-shadow:
+      0 0 0 2px var(--color-surface),
+      0 0 0 4px var(--color-brand-strong);
   }
 }
 @utility focus-ring-dark {
   &:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgb(3 157 183 / 0.45);
+    box-shadow:
+      0 0 0 2px var(--color-ink-heading),
+      0 0 0 4px var(--color-chart-cyan);
   }
 }
