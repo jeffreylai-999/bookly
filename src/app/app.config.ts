@@ -9,8 +9,11 @@ import {
   BookMarked,
   BookOpen,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronsUpDown,
   Clock,
   Hand,
   LayoutDashboard,
@@ -18,10 +21,12 @@ import {
   LUCIDE_ICONS,
   Plus,
   Repeat,
+  ScanBarcode,
   Search,
   Settings,
   User,
   Users,
+  X,
 } from 'lucide-angular';
 
 import { routes } from './app.routes';
@@ -34,17 +39,22 @@ const icons = {
   BookMarked,
   BookOpen,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronsUpDown,
   Clock,
   Hand,
   LayoutDashboard,
   Plus,
   Repeat,
+  ScanBarcode,
   Search,
   Settings,
   User,
   Users,
+  X,
 };
 
 export const appConfig: ApplicationConfig = {
