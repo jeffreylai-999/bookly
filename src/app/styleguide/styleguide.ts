@@ -289,7 +289,8 @@ export class Styleguide {
   protected readonly query = signal('');
   protected readonly tab = signal('active');
   protected readonly page = signal(1);
-  protected readonly statusFilter = signal('');
+  // Starts on a real option rather than leaning on ui-select's normalization.
+  protected readonly statusFilter = signal('all');
   protected readonly selected = signal<readonly unknown[]>([]);
   protected readonly sort = signal<TableSort | null>(null);
   protected readonly dialogOpen = signal(false);

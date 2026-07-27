@@ -38,7 +38,11 @@ export interface TableSort {
  */
 export function sortRows<T>(rows: T[], sort: TableSort | null, columns: TableColumn<T>[]): T[] {
   if (!sort) return rows;
-  const col = columns.find((c) => c.key === sort.key);
+  // `sortable` gates this too, not just the header control. The header renders no
+  // control and reports no `aria-sort` for a non-sortable column, so honouring a
+  // key like that would show sorted data under headers that all claim to be
+  // unsorted — reachable whenever `sort` is restored from a query param.
+  const col = columns.find((c) => c.key === sort.key && c.sortable);
   if (!col) return rows;
   const read = (row: T): string | number => {
     if (col.sortValue) return col.sortValue(row);

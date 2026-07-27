@@ -9,7 +9,7 @@ export interface Toast {
   tone: ToastTone;
 }
 
-/** Errors stay until dismissed; a 2.2s error is an error nobody read. */
+/** How long a confirmation stays up. Errors default to no timeout — see `error`. */
 const DEFAULT_DURATION_MS = 2200;
 
 @Service()
@@ -22,6 +22,7 @@ export class ToastService {
     this.push(message, 'default', duration);
   }
 
+  /** Persists by default: a 2.2s error is an error nobody read. Pass a duration to time it out. */
   error(message: string, duration = 0): void {
     this.push(message, 'danger', duration);
   }

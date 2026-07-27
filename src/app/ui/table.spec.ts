@@ -286,4 +286,14 @@ describe('sortRows', () => {
   it('ignores a sort key that matches no column', () => {
     expect(sortRows(BOOKS, { key: 'nope', direction: 'asc' }, COLS)).toBe(BOOKS);
   });
+
+  /**
+   * The headers only render a sort control for sortable columns and `ariaSort`
+   * returns null for the rest, so honouring a non-sortable key would show
+   * sorted data under headers that all report themselves unsorted. A `sort`
+   * restored from a query param is the realistic way in.
+   */
+  it('ignores a column that is not marked sortable', () => {
+    expect(sortRows(BOOKS, { key: 'status', direction: 'asc' }, COLS)).toBe(BOOKS);
+  });
 });

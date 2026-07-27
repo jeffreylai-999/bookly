@@ -217,6 +217,9 @@ Buttons: `padding:8px 16px; border-radius:8px; font-size:13.5px; font-weight:700
 - **Search:** relative wrapper with an absolutely-positioned 16px magnifier SVG at `left:12px`. Input: `padding:10px 14px 10px 36px; border:1px solid #D9DEE6; border-radius:8px; font-size:14px;` focus adds the teal ring + `border-color:#039DB7`. Typing debounces at 300ms; Enter submits at once and cancels the pending debounce.
 - **Scan mode:** the circulation-desk variant. Icon becomes `scan-barcode`, `autocomplete=off`, `spellcheck=false`, `enterkeyhint=go`. Debounce is off entirely and Enter clears the field for the next item. A barcode gun types an ISBN in milliseconds then sends Enter — under plain debounce that scan waits 300ms and a second scan inside the window cancels the first outright.
 - **Select:** `padding:10px 14px; border:1px solid #D9DEE6; border-radius:8px; font-size:14px; background:#fff;` with an inline chevron at `right:12px`. A native `<select>`, not a custom listbox: the platform control already brings keyboard support, type-ahead, and the mobile picker, and a filter bar needs nothing more. Any placeholder row is `disabled` so it cannot be submitted as a value.
+
+  Selection is set per `<option>`, never by binding `value` on the `<select>`. Two pieces of spec behaviour force this: assigning `select.value` before its options exist is silently dropped, and the selectedness algorithm skips disabled options, so a disabled placeholder has to say `selected` to display at all. A select with no placeholder also adopts its first option when the bound value matches nothing — a native select always has something selected, so a value the options cannot represent would leave the model reading `''` while the user sees the first option chosen.
+
 - Filter bars pair a search + select on the left and a right-aligned muted "N results" count, separated by a `flex:1` spacer.
 
 ### 3.7.1 Form field
