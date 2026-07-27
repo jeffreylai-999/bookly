@@ -27,4 +27,22 @@ describe('ToastService', () => {
     expect(new Set(ids).size).toBe(2);
     expect(svc.toasts().map((t) => t.message)).toEqual(['One', 'Two']);
   });
+
+  it('keeps errors on screen until dismissed, because a 2.2s error goes unread', () => {
+    const svc = TestBed.inject(ToastService);
+    svc.error('Barcode not recognised');
+    vi.advanceTimersByTime(60_000);
+    expect(svc.toasts().length).toBe(1);
+    expect(svc.toasts()[0].tone).toBe('danger');
+
+    svc.dismiss(svc.toasts()[0].id);
+    expect(svc.toasts().length).toBe(0);
+  });
+
+  it('still auto-dismisses an error given an explicit duration', () => {
+    const svc = TestBed.inject(ToastService);
+    svc.error('Retrying', 1000);
+    vi.advanceTimersByTime(1000);
+    expect(svc.toasts().length).toBe(0);
+  });
 });

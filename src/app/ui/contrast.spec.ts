@@ -8,6 +8,8 @@
  */
 
 const AA_NORMAL_TEXT_MIN = 4.5;
+/** SC 1.4.3 large text (>=18.66px bold / 24px regular) and SC 1.4.11 non-text UI. */
+const AA_LARGE_TEXT_AND_NON_TEXT_MIN = 3;
 
 function hexToRgb(hex: string): [number, number, number] {
   const clean = hex.replace('#', '');
@@ -21,9 +23,7 @@ function hexToRgb(hex: string): [number, number, number] {
 function relativeLuminance([r, g, b]: [number, number, number]): number {
   const channel = (c: number): number => {
     const normalized = c / 255;
-    return normalized <= 0.03928
-      ? normalized / 12.92
-      : Math.pow((normalized + 0.055) / 1.055, 2.4);
+    return normalized <= 0.03928 ? normalized / 12.92 : Math.pow((normalized + 0.055) / 1.055, 2.4);
   };
   const [rl, gl, bl] = [channel(r), channel(g), channel(b)];
   return 0.2126 * rl + 0.7152 * gl + 0.0722 * bl;
@@ -42,9 +42,7 @@ function contrastRatio(hexA: string, hexB: string): number {
 function alphaBlendOverWhite(hex: string, alpha: number): string {
   const [r, g, b] = hexToRgb(hex);
   const blend = (c: number): number => Math.round(alpha * c + (1 - alpha) * 255);
-  return `#${[blend(r), blend(g), blend(b)]
-    .map((c) => c.toString(16).padStart(2, '0'))
-    .join('')}`;
+  return `#${[blend(r), blend(g), blend(b)].map((c) => c.toString(16).padStart(2, '0')).join('')}`;
 }
 
 // Tokens copied from src/styles.css @theme.
@@ -69,6 +67,21 @@ const BADGE_PURPLE_TEXT = '#5b3db8';
 
 const COLOR_SUCCESS = '#1a754d';
 const COLOR_DANGER = '#be2539';
+
+const CANVAS = '#f5f7fa';
+const ROW_HOVER = '#f8fafc';
+const CONTROL = '#eef2f7';
+const CONTROL_HOVER = '#f0f3f7';
+const SIDEBAR = '#2e3b4e';
+
+const COLOR_BRAND = '#039db7';
+const COLOR_BRAND_DARK = '#027a8f';
+const COLOR_BRAND_STRONG = '#016b7e';
+const COLOR_INK = '#1b2533';
+const COLOR_INK_HEADING = '#2e3b4e';
+const COLOR_INK_MUTED = '#616c7d';
+const COLOR_INK_SOFT = '#3a4556';
+const COLOR_CHART_CYAN = '#45bbce';
 
 describe('contrastRatio helper', () => {
   it('computes known WCAG example ratios', () => {
@@ -98,9 +111,7 @@ describe('badge text/bg pairs meet WCAG AA (>= 4.5:1)', () => {
   });
 
   it('red', () => {
-    expect(contrastRatio(BADGE_RED_TEXT, BADGE_RED_BG)).toBeGreaterThanOrEqual(
-      AA_NORMAL_TEXT_MIN,
-    );
+    expect(contrastRatio(BADGE_RED_TEXT, BADGE_RED_BG)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
   });
 
   it('cyan', () => {
@@ -139,12 +150,142 @@ describe('semantic status colors meet WCAG AA on white', () => {
   });
 
   it('success on the green badge bg (icon chips reuse the badge palette)', () => {
-    expect(contrastRatio(COLOR_SUCCESS, BADGE_GREEN_BG)).toBeGreaterThanOrEqual(
-      AA_NORMAL_TEXT_MIN,
-    );
+    expect(contrastRatio(COLOR_SUCCESS, BADGE_GREEN_BG)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
   });
 
   it('danger on the red badge bg (icon chips reuse the badge palette)', () => {
     expect(contrastRatio(COLOR_DANGER, BADGE_RED_BG)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
+  });
+});
+
+/**
+ * Button labels are 12–14px bold. WCAG counts "large text" as >=18.66px bold,
+ * so these need the full 4.5:1 — which is why the fills and label text use
+ * `brand-dark`/`brand-strong` rather than `brand` (3.23:1 either direction).
+ */
+describe('button colors meet WCAG AA', () => {
+  it('primary: white label on the brand-dark fill', () => {
+    expect(contrastRatio(SURFACE, COLOR_BRAND_DARK)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
+  });
+
+  it('primary hover: white label on the brand-strong fill', () => {
+    expect(contrastRatio(SURFACE, COLOR_BRAND_STRONG)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
+  });
+
+  it('outline/pill: brand-dark label on the white fill', () => {
+    expect(contrastRatio(COLOR_BRAND_DARK, SURFACE)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
+  });
+
+  it('outline/pill hover: brand-dark label on the cyan badge fill', () => {
+    expect(contrastRatio(COLOR_BRAND_DARK, BADGE_CYAN_BG)).toBeGreaterThanOrEqual(
+      AA_NORMAL_TEXT_MIN,
+    );
+  });
+
+  it('pill-muted: ink-soft label on white and on its hover fill', () => {
+    expect(contrastRatio(COLOR_INK_SOFT, SURFACE)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
+    expect(contrastRatio(COLOR_INK_SOFT, CONTROL_HOVER)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
+  });
+
+  it('the brand border is non-text UI, so 3:1 is the bar it must clear', () => {
+    expect(contrastRatio(COLOR_BRAND, SURFACE)).toBeGreaterThanOrEqual(
+      AA_LARGE_TEXT_AND_NON_TEXT_MIN,
+    );
+  });
+});
+
+describe('toast surfaces meet WCAG AA', () => {
+  it('white message on the ink-heading toast', () => {
+    expect(contrastRatio(SURFACE, COLOR_INK_HEADING)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
+  });
+
+  it('white message on the danger toast', () => {
+    expect(contrastRatio(SURFACE, COLOR_DANGER)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
+  });
+});
+
+/**
+ * Muted text is not confined to white. It also sits on the canvas, on hovered
+ * table rows, and on the segmented control's track — the darkest of the four.
+ * Guard all four grounds, or a token that only passes on white slips through.
+ */
+describe('body and muted text meet WCAG AA on every ground it lands on', () => {
+  const grounds: [string, string][] = [
+    ['white', SURFACE],
+    ['row hover', ROW_HOVER],
+    ['canvas', CANVAS],
+    ['control track', CONTROL],
+  ];
+
+  for (const [name, bg] of grounds) {
+    it(`ink-muted on ${name}`, () => {
+      expect(contrastRatio(COLOR_INK_MUTED, bg)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
+    });
+
+    it(`ink on ${name}`, () => {
+      expect(contrastRatio(COLOR_INK, bg)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
+    });
+  }
+
+  it('ink-heading on white (card and page titles)', () => {
+    expect(contrastRatio(COLOR_INK_HEADING, SURFACE)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
+  });
+
+  it('the hero KPI numeral is 36px/800, so brand only needs the large-text bar', () => {
+    expect(contrastRatio(COLOR_BRAND, SURFACE)).toBeGreaterThanOrEqual(
+      AA_LARGE_TEXT_AND_NON_TEXT_MIN,
+    );
+  });
+});
+
+/**
+ * SC 1.4.11: a focus indicator needs 3:1 against what surrounds it. The ring is
+ * two solid layers rather than one translucent wash for exactly this reason —
+ * `rgba(3,157,183,0.32)` over white measured 1.44:1.
+ */
+describe('focus indicators meet WCAG 2.2 SC 1.4.11 (>= 3:1)', () => {
+  for (const [name, bg] of [
+    ['white', SURFACE],
+    ['canvas', CANVAS],
+    ['control track', CONTROL],
+  ] as [string, string][]) {
+    it(`light ring against ${name}`, () => {
+      expect(contrastRatio(COLOR_BRAND_STRONG, bg)).toBeGreaterThanOrEqual(
+        AA_LARGE_TEXT_AND_NON_TEXT_MIN,
+      );
+    });
+  }
+
+  it('light ring against its own inner layer, which is what makes it read as a ring', () => {
+    // The inner layer is --color-surface, so this also covers the case the
+    // single-layer ring failed: focus on a teal primary button, where the outer
+    // ring would otherwise sit directly against a similar teal.
+    expect(contrastRatio(COLOR_BRAND_STRONG, SURFACE)).toBeGreaterThanOrEqual(
+      AA_LARGE_TEXT_AND_NON_TEXT_MIN,
+    );
+  });
+
+  it('dark ring against the sidebar ground', () => {
+    expect(contrastRatio(COLOR_CHART_CYAN, SIDEBAR)).toBeGreaterThanOrEqual(
+      AA_LARGE_TEXT_AND_NON_TEXT_MIN,
+    );
+  });
+});
+
+describe('sidebar text meets WCAG AA on the dark ground', () => {
+  const overSidebar = (alpha: number): string => {
+    const [r, g, b] = hexToRgb(SIDEBAR);
+    const blend = (c: number): number => Math.round(alpha * 255 + (1 - alpha) * c);
+    return `#${[blend(r), blend(g), blend(b)]
+      .map((c) => c.toString(16).padStart(2, '0'))
+      .join('')}`;
+  };
+
+  it('active nav label (white)', () => {
+    expect(contrastRatio(SURFACE, SIDEBAR)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
+  });
+
+  it('inactive nav label (white at 68%)', () => {
+    expect(contrastRatio(overSidebar(0.68), SIDEBAR)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT_MIN);
   });
 });
