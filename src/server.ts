@@ -5,7 +5,7 @@ import {
   writeResponseToNodeResponse,
 } from '@angular/ssr/node';
 import express from 'express';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
@@ -25,13 +25,20 @@ const angularApp = new AngularNodeAppEngine();
  */
 
 /**
- * Serve static files from /browser
+ * Serve static files from /browser.
+ * Fingerprinted bundles keep a long cache; unhashed assets (e.g. `/i18n/*.json`)
+ * must not — otherwise translation fixes stay stuck for a year.
  */
 app.use(
   express.static(browserDistFolder, {
     maxAge: '1y',
     index: false,
     redirect: false,
+    setHeaders(res, filePath) {
+      if (filePath.includes(`${sep}i18n${sep}`) || filePath.endsWith('.json')) {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
   }),
 );
 

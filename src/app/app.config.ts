@@ -1,8 +1,6 @@
-import {
-  ApplicationConfig,
-  provideBrowserGlobalErrorListeners,
-} from '@angular/core';
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
+import { provideHttpClient, withFetch } from '@angular/common/http';
 import { provideClientHydration } from '@angular/platform-browser';
 import {
   AlertCircle,
@@ -66,6 +64,9 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
+    // Owned here, not inside provideAppTransloco: the HTTP backend providers
+    // are not `multi`, so two provideHttpClient calls silently fight.
+    provideHttpClient(withFetch()),
     provideClientHydration(),
     provideAppTransloco(),
     provideSupabaseClient(),

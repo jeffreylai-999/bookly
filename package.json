@@ -11,7 +11,7 @@
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",
-    "supabase:types": "supabase gen types typescript --local > src/app/core/supabase/database.types.ts"
+    "supabase:types": "node scripts/gen-db-types.mjs"
   },
   "private": true,
   "packageManager": "pnpm@10.11.0",

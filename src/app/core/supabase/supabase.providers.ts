@@ -6,13 +6,9 @@ import {
   type EnvironmentProviders,
   makeEnvironmentProviders,
 } from '@angular/core';
-import type { SupabaseClient } from '@supabase/supabase-js';
-
 import { createSupabaseBrowserClient } from './browser-client';
-import type { Database } from './database.types';
+import type { AppSupabaseClient } from './client.types';
 import { createSupabaseServerClient } from './server-client';
-
-export type AppSupabaseClient = SupabaseClient<Database>;
 
 export const SUPABASE_CLIENT = new InjectionToken<AppSupabaseClient>('SUPABASE_CLIENT');
 
