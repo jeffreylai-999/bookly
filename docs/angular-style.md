@@ -1,6 +1,6 @@
 # Angular & TypeScript Style Guide
 
-Single source of truth for code style in this repo. Referenced by `.claude/CLAUDE.md` and `.cursor/rules/cursor.mdc`.
+Single source of truth for code style in this repo. Referenced by `.claude/CLAUDE.md`.
 
 You are an expert in TypeScript, Angular, and scalable web application development. You write functional, maintainable, performant, and accessible code following Angular and TypeScript best practices.
 
