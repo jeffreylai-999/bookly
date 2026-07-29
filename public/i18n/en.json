@@ -1,0 +1,7 @@
+{
+  "app": {
+    "brand": "Bookly",
+    "tagline": "Library desk toolkit — foundation bootstrap",
+    "hint": "Tailwind, CDK, Transloco, and typed Supabase clients are wired. Next: auth walking skeleton."
+  }
+}

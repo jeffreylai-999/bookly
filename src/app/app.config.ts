@@ -1,4 +1,7 @@
-import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import {
+  ApplicationConfig,
+  provideBrowserGlobalErrorListeners,
+} from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideClientHydration } from '@angular/platform-browser';
 import {
@@ -29,6 +32,8 @@ import {
   X,
 } from 'lucide-angular';
 
+import { provideAppTransloco } from './core/i18n';
+import { provideSupabaseClient } from './core/supabase';
 import { routes } from './app.routes';
 
 const icons = {
@@ -62,6 +67,8 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     provideClientHydration(),
+    provideAppTransloco(),
+    provideSupabaseClient(),
     { provide: LUCIDE_ICONS, multi: true, useValue: new LucideIconProvider(icons) },
   ],
 };
