@@ -28,11 +28,15 @@ grant update (full_name, email, locale) on table public.profiles to authenticate
 -- Seed / dashboard admin API uses the service role (bypasses RLS, still needs table grants).
 grant select, insert, update, delete on table public.profiles to service_role;
 
-create policy profiles_select_authenticated
+-- Own row only. The app never reads another user's profile — AuthService loads
+-- `.eq('id', session.user.id)` — so a broader policy would only widen the blast
+-- radius of a leaked anon-key session to every desk user's email and role.
+-- Cross-user reads (an admin roster) need their own admin-scoped policy.
+create policy profiles_select_own
   on public.profiles
   for select
   to authenticated
-  using (true);
+  using (id = (select auth.uid()));
 
 create policy profiles_update_own
   on public.profiles

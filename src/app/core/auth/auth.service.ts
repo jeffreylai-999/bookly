@@ -1,23 +1,18 @@
 import { isPlatformBrowser } from '@angular/common';
-import {
-  DestroyRef,
-  PLATFORM_ID,
-  Service,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { DestroyRef, PLATFORM_ID, Service, computed, inject, signal } from '@angular/core';
 import type { Session } from '@supabase/supabase-js';
 
 import { SUPABASE_CLIENT } from '../supabase';
 import type { AuthProfile, AuthStatus } from './auth.types';
 
-type ProfileLoad =
-  | { kind: 'ok'; profile: AuthProfile }
-  | { kind: 'missing' }
-  | { kind: 'error' };
+type ProfileLoad = { kind: 'ok'; profile: AuthProfile } | { kind: 'missing' } | { kind: 'error' };
 
-export type LoginError = 'credentials' | 'profile_missing' | 'profile_unavailable' | string;
+/**
+ * Closed union on purpose. An `| string` arm would collapse it back to `string`
+ * and buy no type safety, and no caller renders the provider's message — the
+ * login form maps each case to its own translated copy.
+ */
+export type LoginError = 'credentials' | 'profile_missing' | 'profile_unavailable' | 'unexpected';
 
 @Service()
 export class AuthService {
@@ -60,7 +55,8 @@ export class AuthService {
     await this.ensureReady();
     const { data, error } = await this.supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      return { error: error.message };
+      // `code` is the stable branch point; `message` is prose that can change.
+      return { error: error.code === 'invalid_credentials' ? 'credentials' : 'unexpected' };
     }
     const outcome = await this.applySession(data.session, this.generation);
     if (outcome.kind === 'ok' && this.isAuthenticated()) {

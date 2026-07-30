@@ -18,6 +18,7 @@
         "emailInvalid": "Enter a valid email address",
         "passwordRequired": "Password is required",
         "failed": "Sign-in failed. Check your email and password.",
+        "unexpected": "Something went wrong signing in. Try again in a moment.",
         "unavailable": "Couldn't load your profile. Check your connection and try again."
       }
     }
