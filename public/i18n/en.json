@@ -1,7 +1,48 @@
 {
   "app": {
-    "brand": "Bookly",
-    "tagline": "Library desk toolkit — foundation bootstrap",
-    "hint": "Tailwind, CDK, Transloco, and typed Supabase clients are wired. Next: auth walking skeleton."
+    "brand": "Bookly"
+  },
+  "auth": {
+    "logout": "Sign out",
+    "loggedOut": "Signed out",
+    "logoutFailed": "Could not sign out. Check your connection and try again.",
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Staff desk access for Bookly.",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "errors": {
+        "emailRequired": "Email is required",
+        "emailInvalid": "Enter a valid email address",
+        "passwordRequired": "Password is required",
+        "failed": "Sign-in failed. Check your email and password.",
+        "unavailable": "Couldn't load your profile. Check your connection and try again."
+      }
+    }
+  },
+  "nav": {
+    "overview": "Overview",
+    "circulation": "Circulation",
+    "catalog": "Catalog",
+    "members": "Members",
+    "holds": "Holds",
+    "fines": "Fines",
+    "reports": "Reports",
+    "settings": "Settings",
+    "audit": "Audit"
+  },
+  "shell": {
+    "skip": "Skip to main content",
+    "nav": "Main",
+    "toastDismiss": "Dismiss notification",
+    "comingSoon": "This desk surface lands in a later slice."
+  },
+  "overview": {
+    "empty": {
+      "headline": "Morning briefing comes next",
+      "message": "Overview stays empty until the launchpad slice. Use the sidebar to reach desk flows as they ship."
+    }
   }
 }

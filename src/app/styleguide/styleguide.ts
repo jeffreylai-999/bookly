@@ -26,7 +26,6 @@ import {
   UiSidebarNavItem,
   UiSkeleton,
   UiTable,
-  UiToastHost,
   UiTopbar,
   sortRows,
 } from '../ui';
@@ -63,7 +62,6 @@ interface DemoLoan {
     UiSidebarNavItem,
     UiSkeleton,
     UiTable,
-    UiToastHost,
     UiTopbar,
   ],
   template: `
@@ -279,8 +277,6 @@ interface DemoLoan {
         </button>
         <button dialog-actions uiBtn variant="pill" (click)="saveTitle()">Save</button>
       </ui-dialog>
-
-      <ui-toast-host />
     </ui-layout>
   `,
 })
