@@ -11,7 +11,9 @@
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",
-    "supabase:types": "node scripts/gen-db-types.mjs"
+    "supabase:types": "node scripts/gen-db-types.mjs",
+    "seed:auth": "node --env-file=.env scripts/seed-auth.mjs",
+    "test:sql:profiles-role": "node scripts/run-profiles-role-test.mjs"
   },
   "private": true,
   "packageManager": "pnpm@10.11.0",
@@ -40,6 +42,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@types/express": "^5.0.1",
     "@types/node": "^20.17.19",
+    "axe-core": "^4.12.1",
     "jsdom": "^28.0.0",
     "postcss": "^8.5.23",
     "prettier": "^3.8.1",
