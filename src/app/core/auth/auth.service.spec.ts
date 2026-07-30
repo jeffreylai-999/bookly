@@ -13,7 +13,7 @@ function createMockClient(
     getSession?: () => Promise<{ data: { session: unknown } }>;
     signInWithPassword?: (args: unknown) => Promise<{
       data: { session: unknown };
-      error: null | { message: string };
+      error: null | { message: string; code?: string };
     }>;
     signOut?: () => Promise<{ error: null | { message: string } }>;
     profile?: unknown;
@@ -135,6 +135,53 @@ describe('AuthService', () => {
     expect(result.error).toBeNull();
     expect(auth.isAdmin()).toBe(true);
     expect(auth.profile()?.email).toBe('admin@bookly.local');
+  });
+
+  it('maps a rejected password to credentials, not the provider message', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        AuthService,
+        { provide: PLATFORM_ID, useValue: 'browser' },
+        {
+          provide: SUPABASE_CLIENT,
+          useValue: createMockClient({
+            signInWithPassword: async () => ({
+              data: { session: null },
+              error: { message: 'Invalid login credentials', code: 'invalid_credentials' },
+            }),
+          }),
+        },
+      ],
+    });
+
+    const auth = TestBed.inject(AuthService);
+    const result = await auth.login('staff@bookly.local', 'wrong');
+
+    expect(result.error).toBe('credentials');
+    expect(auth.isAuthenticated()).toBe(false);
+  });
+
+  it('maps any other sign-in failure to unexpected', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        AuthService,
+        { provide: PLATFORM_ID, useValue: 'browser' },
+        {
+          provide: SUPABASE_CLIENT,
+          useValue: createMockClient({
+            signInWithPassword: async () => ({
+              data: { session: null },
+              error: { message: 'gateway exploded', code: 'unexpected_failure' },
+            }),
+          }),
+        },
+      ],
+    });
+
+    const auth = TestBed.inject(AuthService);
+    const result = await auth.login('staff@bookly.local', 'secret');
+
+    expect(result.error).toBe('unexpected');
   });
 
   it('login fails closed when the profile row is missing', async () => {

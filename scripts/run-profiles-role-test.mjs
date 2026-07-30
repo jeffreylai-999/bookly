@@ -2,22 +2,71 @@
 /**
  * Runs supabase/tests/profiles_role_grant.sql against the local DB container.
  * Uses docker exec so it works without a host psql install (Windows-friendly).
+ *
+ * The container is discovered from `docker ps` rather than hard-coded, so a
+ * renamed `project_id` in config.toml keeps working. Set SUPABASE_DB_CONTAINER
+ * to pick one explicitly when several stacks are up at once.
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
+const CONTAINER_PREFIX = 'supabase_db_';
+
+function fail(message) {
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
+}
+
+function resolveContainer() {
+  const override = process.env.SUPABASE_DB_CONTAINER;
+  if (override) {
+    return override;
+  }
+
+  const found = spawnSync(
+    'docker',
+    ['ps', '--filter', `name=${CONTAINER_PREFIX}`, '--format', '{{.Names}}'],
+    { encoding: 'utf8' },
+  );
+
+  if (found.error) {
+    fail(`Could not run docker (is Docker installed and running?):\n${found.error.message}`);
+  }
+  if (found.status !== 0) {
+    fail(`docker ps failed (exit ${found.status}):\n${found.stderr ?? ''}`);
+  }
+
+  const names = (found.stdout ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (names.length === 0) {
+    fail(
+      `No running ${CONTAINER_PREFIX}* container. Start the stack with \`pnpm supabase:start\`.`,
+    );
+  }
+  if (names.length > 1) {
+    fail(
+      `Several Supabase DB containers are running:\n  ${names.join('\n  ')}\n` +
+        'Pick one with SUPABASE_DB_CONTAINER=<name>.',
+    );
+  }
+
+  return names[0];
+}
+
 const sql = readFileSync('supabase/tests/profiles_role_grant.sql', 'utf8');
+const container = resolveContainer();
+
 const result = spawnSync(
   'docker',
-  ['exec', '-i', 'supabase_db_bookly', 'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1'],
+  ['exec', '-i', container, 'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1'],
   { input: sql, encoding: 'utf8' },
 );
 
 if (result.error) {
-  process.stderr.write(
-    `Failed to run docker exec (is Docker running and is the local Supabase DB up?):\n${result.error.message}\n`,
-  );
-  process.exit(1);
+  fail(`Failed to run docker exec against ${container}:\n${result.error.message}`);
 }
 
 process.stdout.write(result.stdout ?? '');

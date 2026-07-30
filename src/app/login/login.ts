@@ -3,13 +3,24 @@ import { Router } from '@angular/router';
 import { form, FormField, email, required, submit } from '@angular/forms/signals';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 
-import { AuthService } from '../core/auth';
+import { AuthService, type LoginError } from '../core/auth';
 import { UiBtn, UiField } from '../ui';
 
 interface LoginModel {
   email: string;
   password: string;
 }
+
+/**
+ * Exhaustive by type: adding a `LoginError` member without copy for it is a
+ * compile error rather than a silently generic message.
+ */
+const LOGIN_ERROR_KEYS: Record<LoginError, string> = {
+  credentials: 'auth.login.errors.failed',
+  profile_missing: 'auth.login.errors.failed',
+  profile_unavailable: 'auth.login.errors.unavailable',
+  unexpected: 'auth.login.errors.unexpected',
+};
 
 @Component({
   selector: 'app-login',
@@ -145,12 +156,8 @@ export class Login {
       try {
         const { email, password } = this.model();
         const { error } = await this.auth.login(email, password);
-        if (error === 'profile_unavailable') {
-          this.formError.set(this.transloco.translate('auth.login.errors.unavailable'));
-          return;
-        }
         if (error) {
-          this.formError.set(this.transloco.translate('auth.login.errors.failed'));
+          this.formError.set(this.transloco.translate(LOGIN_ERROR_KEYS[error]));
           return;
         }
         await this.router.navigateByUrl('/');
