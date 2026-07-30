@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { form, FormField, email, required, submit } from '@angular/forms/signals';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -30,9 +30,20 @@ interface LoginModel {
         <p class="mt-2 text-sm text-ink-muted">{{ 'auth.login.subtitle' | transloco }}</p>
 
         <form class="mt-8 flex flex-col gap-5" (submit)="onSubmit($event)" novalidate>
+          <!--
+            The error signals hold i18n keys, not text — the pipe resolves them
+            so a catalog that lands after first paint still renders, and a lang
+            switch re-renders. Translating inside the computed would latch the
+            value read on the first evaluation.
+          -->
+          @let emailKey = emailErrorKey();
+          @let emailErrorText = emailKey ? (emailKey | transloco) : undefined;
+          @let passwordKey = passwordErrorKey();
+          @let passwordErrorText = passwordKey ? (passwordKey | transloco) : undefined;
+
           <ui-field
             [label]="'auth.login.email' | transloco"
-            [error]="emailError()"
+            [error]="emailErrorText"
             [required]="true"
             #emailField
           >
@@ -41,7 +52,7 @@ interface LoginModel {
               autocomplete="username"
               [id]="emailField.controlId"
               [attr.aria-describedby]="emailField.describedBy()"
-              [attr.aria-invalid]="emailError() ? true : null"
+              [attr.aria-invalid]="emailErrorText ? true : null"
               [formField]="loginForm.email"
               class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus-ring focus:border-brand"
             />
@@ -49,7 +60,7 @@ interface LoginModel {
 
           <ui-field
             [label]="'auth.login.password' | transloco"
-            [error]="passwordError()"
+            [error]="passwordErrorText"
             [required]="true"
             #passwordField
           >
@@ -58,7 +69,7 @@ interface LoginModel {
               autocomplete="current-password"
               [id]="passwordField.controlId"
               [attr.aria-describedby]="passwordField.describedBy()"
-              [attr.aria-invalid]="passwordError() ? true : null"
+              [attr.aria-invalid]="passwordErrorText ? true : null"
               [formField]="loginForm.password"
               class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus-ring focus:border-brand"
             />
@@ -95,35 +106,41 @@ export class Login {
 
   private readonly model = signal<LoginModel>({ email: '', password: '' });
   protected readonly loginForm = form(this.model, (path) => {
-    required(path.email, { message: 'required' });
-    email(path.email, { message: 'email' });
-    required(path.password, { message: 'required' });
+    required(path.email);
+    email(path.email);
+    required(path.password);
   });
 
-  protected emailError(): string | undefined {
+  /**
+   * Gated on `touched()` so an untouched empty form announces nothing — the
+   * template drives `aria-invalid` off the same signal, keeping the visible
+   * message and the a11y state in step.
+   */
+  protected readonly emailErrorKey = computed(() => {
     const field = this.loginForm.email();
     if (!field.touched() || !field.invalid()) {
       return undefined;
     }
-    const kind = field.errors()[0]?.kind;
-    return kind === 'email'
-      ? this.transloco.translate('auth.login.errors.emailInvalid')
-      : this.transloco.translate('auth.login.errors.emailRequired');
-  }
+    return field.getError('email')
+      ? 'auth.login.errors.emailInvalid'
+      : 'auth.login.errors.emailRequired';
+  });
 
-  protected passwordError(): string | undefined {
+  protected readonly passwordErrorKey = computed(() => {
     const field = this.loginForm.password();
     if (!field.touched() || !field.invalid()) {
       return undefined;
     }
-    return this.transloco.translate('auth.login.errors.passwordRequired');
-  }
+    return 'auth.login.errors.passwordRequired';
+  });
 
   protected async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
     this.formError.set(null);
 
-    const ok = await submit(this.loginForm, async () => {
+    // `submit()` marks the form touched itself before checking validity, so
+    // there is nothing to do with its return value here.
+    await submit(this.loginForm, async () => {
       this.submitting.set(true);
       try {
         const { email, password } = this.model();
@@ -141,9 +158,5 @@ export class Login {
         this.submitting.set(false);
       }
     });
-
-    if (!ok) {
-      this.loginForm().markAsTouched();
-    }
   }
 }
