@@ -25,7 +25,10 @@ export const routes: Routes = [
       },
       { path: 'circulation', component: ComingSoon, data: { titleKey: 'nav.circulation' } },
       { path: 'catalog', loadComponent: () => import('./catalog/catalog').then((m) => m.Catalog) },
-      { path: 'members', component: ComingSoon, data: { titleKey: 'nav.members' } },
+      {
+        path: 'members',
+        loadComponent: () => import('./members/members-list').then((m) => m.MembersList),
+      },
       { path: 'holds', component: ComingSoon, data: { titleKey: 'nav.holds' } },
       { path: 'fines', component: ComingSoon, data: { titleKey: 'nav.fines' } },
       { path: 'reports', component: ComingSoon, data: { titleKey: 'nav.reports' } },

@@ -139,5 +139,83 @@
       "copyNotFound": "Copy not found.",
       "unexpected": "Something went wrong. Try again."
     }
+  },
+  "members": {
+    "title": "Members",
+    "subtitle": "{{count}} members",
+    "searchPlaceholder": "Search by name",
+    "statusFilter": "Filter by status",
+    "tableCaption": "Library members",
+    "unknownType": "Unknown",
+    "loading": "Loading members",
+    "errors": {
+      "loadFailed": "Couldn't load members. Check your connection and try again.",
+      "typesLoadFailed": "Couldn't load member types. Add/edit is unavailable until this recovers."
+    },
+    "columns": {
+      "name": "Name",
+      "type": "Type",
+      "joined": "Joined",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "status": {
+      "all": "All statuses",
+      "active": "Active",
+      "suspended": "Suspended",
+      "blocked": "Blocked"
+    },
+    "actions": {
+      "add": "Add member",
+      "edit": "Edit",
+      "suspend": "Suspend",
+      "lift": "Lift suspension",
+      "block": "Block",
+      "unblock": "Unblock",
+      "clearFilters": "Clear filters"
+    },
+    "empty": {
+      "headline": "No members yet",
+      "message": "Add a member to start lending at the desk.",
+      "filteredHeadline": "No members match",
+      "filteredMessage": "Try a different name or clear the status filter."
+    },
+    "pagination": {
+      "prev": "Previous page",
+      "next": "Next page",
+      "nav": "Members pagination",
+      "summary": "Showing {{from}}–{{to}} of {{total}}"
+    },
+    "form": {
+      "addHeading": "Add member",
+      "editHeading": "Edit member",
+      "subtitle": "Card barcodes must use the MBR- prefix.",
+      "close": "Close dialog",
+      "name": "Full name",
+      "memberType": "Member type",
+      "memberTypePlaceholder": "Select a type",
+      "cardBarcode": "Card barcode",
+      "cardBarcodeHint": "Unique scan id, for example MBR-1042",
+      "email": "Email",
+      "phone": "Phone",
+      "cancel": "Cancel",
+      "create": "Create member",
+      "save": "Save changes",
+      "saving": "Saving…",
+      "errors": {
+        "nameRequired": "Name is required",
+        "typeRequired": "Member type is required",
+        "cardBarcodeRequired": "Card barcode is required",
+        "cardBarcodePattern": "Card barcode must start with MBR-",
+        "saveFailed": "Could not save the member. Check the barcode is unique and try again."
+      }
+    },
+    "toasts": {
+      "created": "Member added",
+      "updated": "Member updated",
+      "statusUpdated": "Member status updated",
+      "statusFailed": "Could not update member status",
+      "auditFailed": "Member saved, but the audit entry could not be written"
+    }
   }
 }
