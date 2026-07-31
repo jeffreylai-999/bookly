@@ -187,6 +187,18 @@ begin
   ) then
     raise exception 'admin set_member_status should block the member';
   end if;
+
+  if not exists (
+    select 1 from public.audit_log
+    where actor = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeee0002'
+      and action = 'member.status'
+      and entity_type = 'member'
+      and entity_id = 'bbbbbbbb-bbbb-cccc-dddd-eeeeeeee0001'
+      and detail->>'from' = 'active'
+      and detail->>'to' = 'blocked'
+  ) then
+    raise exception 'admin set_member_status should write an audit row for the session actor';
+  end if;
 end $$;
 
 -- Staff cannot unblock.

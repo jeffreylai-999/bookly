@@ -49,6 +49,7 @@ function createStoreFake(overrides: Partial<Record<string, unknown>> = {}) {
     loading: signal(false).asReadonly(),
     saving: signal(false).asReadonly(),
     error: signal<string | null>(null).asReadonly(),
+    typesError: signal<string | null>(null).asReadonly(),
     memberTypes: signal([{ id: 't1', name: 'Adult' }]).asReadonly(),
     empty: signal(false).asReadonly(),
     hasActiveFilters: signal(false).asReadonly(),

@@ -27,6 +27,7 @@ export class MembersStore {
   private readonly loadingState = signal(false);
   private readonly savingState = signal(false);
   private readonly errorState = signal<string | null>(null);
+  private readonly typesErrorState = signal<string | null>(null);
   private readonly memberTypesState = signal<MemberType[]>([]);
 
   readonly rows = this.rowsState.asReadonly();
@@ -37,7 +38,9 @@ export class MembersStore {
   readonly statusFilter = this.statusFilterState.asReadonly();
   readonly loading = this.loadingState.asReadonly();
   readonly saving = this.savingState.asReadonly();
+  /** List-load failures only — never mixed with member-types errors. */
   readonly error = this.errorState.asReadonly();
+  readonly typesError = this.typesErrorState.asReadonly();
   readonly memberTypes = this.memberTypesState.asReadonly();
   readonly empty = computed(
     () => !this.loadingState() && !this.errorState() && this.totalState() === 0,
@@ -82,9 +85,11 @@ export class MembersStore {
   async loadMemberTypes(): Promise<void> {
     const result = await this.repo.listMemberTypes();
     if (result.error) {
-      this.errorState.set(result.error);
+      this.typesErrorState.set(result.error);
+      this.memberTypesState.set([]);
       return;
     }
+    this.typesErrorState.set(null);
     this.memberTypesState.set(result.rows);
   }
 

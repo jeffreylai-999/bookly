@@ -86,4 +86,37 @@ describe('MembersStore', () => {
     expect(setStatus).toHaveBeenCalledWith('m1', 'suspended');
     expect(log).not.toHaveBeenCalled();
   });
+
+  it('keeps member-types failures off the list error/empty signals', async () => {
+    const list = vi.fn().mockResolvedValue({ rows: [sampleMember], total: 1, error: null });
+    const listMemberTypes = vi.fn().mockResolvedValue({
+      rows: [],
+      error: 'types unavailable',
+    });
+
+    await TestBed.configureTestingModule({
+      providers: [
+        MembersStore,
+        {
+          provide: MembersRepository,
+          useValue: {
+            list,
+            listMemberTypes,
+            create: vi.fn(),
+            update: vi.fn(),
+            setStatus: vi.fn(),
+          },
+        },
+        { provide: AuditService, useValue: { log: vi.fn() } },
+      ],
+    }).compileComponents();
+
+    const store = TestBed.inject(MembersStore);
+    await store.init();
+
+    expect(store.error()).toBeNull();
+    expect(store.typesError()).toBe('types unavailable');
+    expect(store.rows()).toEqual([sampleMember]);
+    expect(store.empty()).toBe(false);
+  });
 });

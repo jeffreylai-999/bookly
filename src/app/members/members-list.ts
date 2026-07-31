@@ -95,6 +95,11 @@ const STATUS_LABEL_KEYS: Record<MemberStatus, string> = {
           {{ 'members.errors.loadFailed' | transloco }}
         </p>
       }
+      @if (store.typesError()) {
+        <p role="alert" class="text-sm font-semibold text-danger">
+          {{ 'members.errors.typesLoadFailed' | transloco }}
+        </p>
+      }
 
       @if (store.loading()) {
         <div role="status" aria-live="polite" class="flex flex-col gap-2.5">

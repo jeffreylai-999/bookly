@@ -55,7 +55,8 @@
     "unknownType": "Unknown",
     "loading": "Loading members",
     "errors": {
-      "loadFailed": "Couldn't load members. Check your connection and try again."
+      "loadFailed": "Couldn't load members. Check your connection and try again.",
+      "typesLoadFailed": "Couldn't load member types. Add/edit is unavailable until this recovers."
     },
     "columns": {
       "name": "Name",
