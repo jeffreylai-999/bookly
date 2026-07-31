@@ -34,6 +34,76 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string
+          actor: string | null
+          created_at: string
+          detail: Json
+          entity_id: string | null
+          entity_type: string
+          id: string
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          created_at?: string
+          detail?: Json
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          created_at?: string
+          detail?: Json
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_actor_fkey"
+            columns: ["actor"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      copies: {
+        Row: {
+          barcode: string
+          created_at: string
+          id: string
+          status: Database["public"]["Enums"]["copy_status"]
+          title_id: string
+        }
+        Insert: {
+          barcode: string
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["copy_status"]
+          title_id: string
+        }
+        Update: {
+          barcode?: string
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["copy_status"]
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "copies_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -61,14 +131,84 @@ export type Database = {
         }
         Relationships: []
       }
+      titles: {
+        Row: {
+          author: string
+          created_at: string
+          description: string | null
+          genre: string
+          id: string
+          isbn: string | null
+          replacement_cost: number | null
+          title: string
+        }
+        Insert: {
+          author: string
+          created_at?: string
+          description?: string | null
+          genre: string
+          id?: string
+          isbn?: string | null
+          replacement_cost?: number | null
+          title: string
+        }
+        Update: {
+          author?: string
+          created_at?: string
+          description?: string | null
+          genre?: string
+          id?: string
+          isbn?: string | null
+          replacement_cost?: number | null
+          title?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_title_with_copies: {
+        Args: {
+          p_author: string
+          p_barcodes: string[]
+          p_description: string
+          p_genre: string
+          p_isbn: string
+          p_replacement_cost: number
+          p_title: string
+        }
+        Returns: Json
+      }
+      set_copy_status: {
+        Args: {
+          p_copy_id: string
+          p_status: Database["public"]["Enums"]["copy_status"]
+        }
+        Returns: {
+          barcode: string
+          created_at: string
+          id: string
+          status: Database["public"]["Enums"]["copy_status"]
+          title_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "copies"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
+      copy_status:
+        | "available"
+        | "on_loan"
+        | "on_hold_shelf"
+        | "lost"
+        | "damaged"
+        | "retired"
       profile_role: "staff" | "admin"
     }
     CompositeTypes: {
@@ -200,6 +340,14 @@ export const Constants = {
   },
   public: {
     Enums: {
+      copy_status: [
+        "available",
+        "on_loan",
+        "on_hold_shelf",
+        "lost",
+        "damaged",
+        "retired",
+      ],
       profile_role: ["staff", "admin"],
     },
   },
