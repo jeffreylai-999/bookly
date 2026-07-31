@@ -1,5 +1,6 @@
 import { Service, computed, inject, signal } from '@angular/core';
 
+import { pageCount } from '../ui';
 import { CatalogRepository } from './catalog.repository';
 import type {
   AddTitleInput,
@@ -14,6 +15,8 @@ const DEFAULT_PAGE_SIZE = 10;
 @Service()
 export class CatalogStore {
   private readonly repo = inject(CatalogRepository);
+  /** Bumped on each load so stale responses cannot overwrite newer results. */
+  private loadGeneration = 0;
 
   private readonly rowsState = signal<CatalogTitle[]>([]);
   private readonly totalState = signal(0);
@@ -39,30 +42,52 @@ export class CatalogStore {
     () => this.searchState().trim().length > 0 || this.genreState().trim().length > 0,
   );
 
-  readonly isEmpty = computed(() => !this.loadingState() && this.totalState() === 0);
+  /** True only for a successful empty result — not while loading or after a load error. */
+  readonly isEmpty = computed(
+    () => !this.loadingState() && this.errorState() === null && this.totalState() === 0,
+  );
 
   async load(): Promise<void> {
+    const generation = ++this.loadGeneration;
     this.loadingState.set(true);
     this.errorState.set(null);
     try {
+      const page = this.pageState();
+      const pageSize = this.pageSizeState();
       const [list, genres] = await Promise.all([
         this.repo.listTitles({
           search: this.searchState(),
           genre: this.genreState(),
-          page: this.pageState(),
-          pageSize: this.pageSizeState(),
+          page,
+          pageSize,
         }),
         this.repo.listGenres(),
       ]);
+      if (generation !== this.loadGeneration) {
+        return;
+      }
+
+      const maxPage = pageCount(list.total, pageSize);
+      if (list.total > 0 && page > maxPage) {
+        this.pageState.set(maxPage);
+        await this.load();
+        return;
+      }
+
       this.rowsState.set(list.rows);
       this.totalState.set(list.total);
       this.genresState.set(genres);
     } catch {
+      if (generation !== this.loadGeneration) {
+        return;
+      }
       this.errorState.set('load_failed');
       this.rowsState.set([]);
       this.totalState.set(0);
     } finally {
-      this.loadingState.set(false);
+      if (generation === this.loadGeneration) {
+        this.loadingState.set(false);
+      }
     }
   }
 
@@ -102,31 +127,29 @@ export class CatalogStore {
     await this.load();
   }
 
-  async addTitle(input: AddTitleInput): Promise<{ ok: true } | { ok: false; error: CatalogMutationError }> {
-    const result = await this.repo.addTitle(input);
-    if (!result.ok) {
-      return result;
-    }
-    await this.load();
-    return { ok: true };
+  async addTitle(
+    input: AddTitleInput,
+  ): Promise<{ ok: true } | { ok: false; error: CatalogMutationError }> {
+    return this.mutateAndReload(() => this.repo.addTitle(input));
   }
 
   async editCopy(
     input: EditCopyInput,
   ): Promise<{ ok: true } | { ok: false; error: CatalogMutationError }> {
-    const result = await this.repo.editCopy(input);
-    if (!result.ok) {
-      return result;
-    }
-    await this.load();
-    return { ok: true };
+    return this.mutateAndReload(() => this.repo.editCopy(input));
   }
 
   async setCopyStatus(
     copyId: string,
     status: CopyStatus,
   ): Promise<{ ok: true } | { ok: false; error: CatalogMutationError }> {
-    const result = await this.repo.setCopyStatus(copyId, status);
+    return this.mutateAndReload(() => this.repo.setCopyStatus(copyId, status));
+  }
+
+  private async mutateAndReload(
+    run: () => Promise<{ ok: true; value: unknown } | { ok: false; error: CatalogMutationError }>,
+  ): Promise<{ ok: true } | { ok: false; error: CatalogMutationError }> {
+    const result = await run();
     if (!result.ok) {
       return result;
     }

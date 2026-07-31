@@ -103,10 +103,28 @@ begin
   end if;
 end $$;
 
--- Non-status update still works.
+-- Non-status barcode update still works.
 update public.copies
 set barcode = 'BK-TEST-001-REN'
 where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1';
+
+-- Direct UPDATE of title_id must be rejected (column grant).
+do $$
+declare
+  raised boolean := false;
+begin
+  begin
+    update public.copies
+    set title_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+    where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1';
+  exception
+    when insufficient_privilege then
+      raised := true;
+  end;
+  if not raised then
+    raise exception 'expected insufficient_privilege when authenticated updates copies.title_id';
+  end if;
+end $$;
 
 -- set_copy_status: staff can mark available → lost, and it audits.
 do $$
