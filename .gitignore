@@ -48,3 +48,8 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Local junk
+**/__pycache__/
+.tmp-*.json
+
