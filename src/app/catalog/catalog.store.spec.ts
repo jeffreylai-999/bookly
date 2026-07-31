@@ -123,4 +123,69 @@ describe('CatalogStore', () => {
     expect(result).toEqual({ ok: true });
     expect(store.rows()[0]?.availableCount).toBe(0);
   });
+
+  it('does not treat a load failure as an empty catalog', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        CatalogStore,
+        {
+          provide: CatalogRepository,
+          useValue: {
+            listTitles: async () => {
+              throw new Error('network');
+            },
+            listGenres: async () => [],
+            addTitle: async () => ({ ok: false, error: 'unexpected' }),
+            editCopy: async () => ({ ok: false, error: 'unexpected' }),
+            setCopyStatus: async () => ({ ok: false, error: 'unexpected' }),
+          },
+        },
+      ],
+    });
+
+    const store = TestBed.inject(CatalogStore);
+    await store.load();
+
+    expect(store.error()).toBe('load_failed');
+    expect(store.isEmpty()).toBe(false);
+  });
+
+  it('ignores stale load results after a newer load starts', async () => {
+    const deferred: {
+      resolve: (value: { rows: CatalogTitle[]; total: number }) => void;
+    } = {
+      resolve: () => undefined,
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        CatalogStore,
+        {
+          provide: CatalogRepository,
+          useValue: {
+            listTitles: async (q: { search: string }) => {
+              if (q.search === 'slow') {
+                return new Promise<{ rows: CatalogTitle[]; total: number }>((resolve) => {
+                  deferred.resolve = resolve;
+                });
+              }
+              return { rows: [dune], total: 1 };
+            },
+            listGenres: async () => ['Sci-fi'],
+            addTitle: async () => ({ ok: false, error: 'unexpected' }),
+            editCopy: async () => ({ ok: false, error: 'unexpected' }),
+            setCopyStatus: async () => ({ ok: false, error: 'unexpected' }),
+          },
+        },
+      ],
+    });
+
+    const store = TestBed.inject(CatalogStore);
+    const slow = store.applySearch('slow');
+    await store.applySearch('');
+    deferred.resolve({ rows: [], total: 0 });
+    await slow;
+
+    expect(store.rows()).toEqual([dune]);
+    expect(store.total()).toBe(1);
+  });
 });

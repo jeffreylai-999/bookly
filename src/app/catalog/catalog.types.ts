@@ -1,7 +1,6 @@
-import type { Enums, Tables, TablesInsert, TablesUpdate } from '../core/supabase';
+import type { Enums, Tables, TablesUpdate } from '../core/supabase';
 
 export type CopyStatus = Enums<'copy_status'>;
-export type TitleRow = Tables<'titles'>;
 export type CopyRow = Tables<'copies'>;
 
 type AssertTrue<T extends true> = T;
@@ -12,10 +11,9 @@ export type CopiesStatusIsGenerated = AssertTrue<
 >;
 
 /**
- * Client-safe copy insert/update. `status` is excluded to match the column-level
- * GRANTs — status changes go through `set_copy_status` only.
+ * Client-safe copy update. `status` is excluded to match the column-level
+ * GRANT — status changes go through `set_copy_status` only.
  */
-export type CopiesClientInsert = Omit<TablesInsert<'copies'>, 'status'>;
 export type CopiesClientUpdate = Omit<TablesUpdate<'copies'>, 'status'>;
 
 export interface TitleCopySummary {

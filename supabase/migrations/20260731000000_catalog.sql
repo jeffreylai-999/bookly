@@ -55,8 +55,6 @@ comment on table public.audit_log is 'Append-only history; rows written only ins
 create index copies_title_id_idx on public.copies (title_id);
 create index copies_status_idx on public.copies (status);
 create index titles_genre_idx on public.titles (genre);
-create index titles_title_trgm_ready on public.titles (lower(title));
-create index titles_author_trgm_ready on public.titles (lower(author));
 create index audit_log_created_at_idx on public.audit_log (created_at desc);
 
 alter table public.titles enable row level security;
@@ -70,12 +68,12 @@ revoke all on table public.titles from anon, authenticated;
 grant select, insert, update on table public.titles to authenticated;
 grant select, insert, update, delete on table public.titles to service_role;
 
--- copies: staff may insert/update non-status columns; status omitted from both
--- INSERT and UPDATE grants so a client cannot smuggle on_loan/retired/etc.
+-- copies: staff may insert without status; updates limited to barcode (reassigning
+-- title_id would silently corrupt availability/history). Status via RPC only.
 revoke all on table public.copies from anon, authenticated;
 grant select on table public.copies to authenticated;
 grant insert (id, title_id, barcode, created_at) on table public.copies to authenticated;
-grant update (title_id, barcode, created_at) on table public.copies to authenticated;
+grant update (barcode) on table public.copies to authenticated;
 grant select, insert, update, delete on table public.copies to service_role;
 
 -- audit_log: readable by staff; no direct writes for anyone except service_role
@@ -285,20 +283,14 @@ begin
 
   -- Allowed transitions for shelf-audit / repair (staff + admin):
   --   available | on_hold_shelf → lost | damaged | retired
-  --   lost | damaged → available
-  --   retired → available (admin, gated above)
+  --   lost | damaged | retired → available (retire gated above)
   -- Circulation statuses on_loan / on_hold_shelf are not set here.
-  if p_status in ('on_loan', 'on_hold_shelf') then
-    raise exception 'invalid_status_transition' using errcode = 'P0001';
-  end if;
-
-  if v_from in ('available', 'on_hold_shelf')
-     and p_status in ('lost', 'damaged', 'retired') then
-    null; -- ok
-  elsif v_from in ('lost', 'damaged', 'retired')
-     and p_status = 'available' then
-    null; -- ok
-  else
+  if p_status in ('on_loan', 'on_hold_shelf')
+     or not (
+       (v_from in ('available', 'on_hold_shelf') and p_status in ('lost', 'damaged', 'retired'))
+       or (v_from in ('lost', 'damaged', 'retired') and p_status = 'available')
+     )
+  then
     raise exception 'invalid_status_transition' using errcode = 'P0001';
   end if;
 
