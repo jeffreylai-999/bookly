@@ -237,4 +237,49 @@ begin
   end if;
 end $$;
 
+-- Client cannot set copies.id on insert (column grant).
+do $$
+declare
+  raised boolean := false;
+begin
+  begin
+    insert into public.copies (id, title_id, barcode)
+    values (
+      'cccccccc-cccc-cccc-cccc-cccccccccccc',
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      'BK-TEST-ID'
+    );
+  exception
+    when insufficient_privilege then
+      raised := true;
+  end;
+  if not raised then
+    raise exception 'expected insufficient_privilege when authenticated inserts copies.id';
+  end if;
+end $$;
+
+-- add_title_with_copies trims barcodes before BK- validation.
+do $$
+declare
+  v_payload jsonb;
+begin
+  select public.add_title_with_copies(
+    'Trim Test',
+    'Author',
+    'Fiction',
+    null,
+    null,
+    null,
+    array['  BK-TRIM-001  ']
+  ) into v_payload;
+
+  if not exists (
+    select 1 from public.copies
+    where barcode = 'BK-TRIM-001'
+      and title_id = (v_payload->>'id')::uuid
+  ) then
+    raise exception 'expected trimmed BK-TRIM-001 barcode after add_title_with_copies';
+  end if;
+end $$;
+
 rollback;
