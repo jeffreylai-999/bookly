@@ -24,7 +24,7 @@ create table public.titles (
 );
 
 comment on table public.titles is 'Bibliographic works; never lent directly — only their copies are.';
-comment on column public.titles.isbn is 'Unique when present; null allowed for untitled ISBNs.';
+comment on column public.titles.isbn is 'Unique when present; null allowed for titles without an ISBN.';
 
 create table public.copies (
   id uuid primary key default gen_random_uuid(),
@@ -63,16 +63,22 @@ alter table public.audit_log enable row level security;
 
 grant usage on type public.copy_status to authenticated;
 
--- titles: staff read/write; no DELETE (lifecycle is via copies.retired).
+-- titles: staff read/write business columns; no DELETE (lifecycle via copies.retired).
+-- id / created_at stay server-defaulted — not client-writable.
 revoke all on table public.titles from anon, authenticated;
-grant select, insert, update on table public.titles to authenticated;
+grant select on table public.titles to authenticated;
+grant insert (title, author, genre, isbn, description, replacement_cost)
+  on table public.titles to authenticated;
+grant update (title, author, genre, isbn, description, replacement_cost)
+  on table public.titles to authenticated;
 grant select, insert, update, delete on table public.titles to service_role;
 
--- copies: staff may insert without status; updates limited to barcode (reassigning
--- title_id would silently corrupt availability/history). Status via RPC only.
+-- copies: staff may insert title_id + barcode only (status via RPC; id/created_at
+-- server-defaulted). Updates limited to barcode — reassigning title_id would
+-- silently corrupt availability/history.
 revoke all on table public.copies from anon, authenticated;
 grant select on table public.copies to authenticated;
-grant insert (id, title_id, barcode, created_at) on table public.copies to authenticated;
+grant insert (title_id, barcode) on table public.copies to authenticated;
 grant update (barcode) on table public.copies to authenticated;
 grant select, insert, update, delete on table public.copies to service_role;
 
@@ -146,6 +152,7 @@ declare
   v_actor uuid := auth.uid();
   v_title public.titles;
   v_barcode text;
+  v_barcodes text[];
   v_copies jsonb := '[]'::jsonb;
   v_copy public.copies;
 begin
@@ -163,8 +170,13 @@ begin
     raise exception 'barcodes_required' using errcode = 'P0001';
   end if;
 
-  foreach v_barcode in array p_barcodes loop
-    if v_barcode is null or v_barcode !~ '^BK-' then
+  -- Trim before validating so leading/trailing space cannot reject a valid BK- code.
+  select coalesce(array_agg(trim(b) order by ord), '{}')
+  into v_barcodes
+  from unnest(p_barcodes) with ordinality as t(b, ord);
+
+  foreach v_barcode in array v_barcodes loop
+    if v_barcode is null or v_barcode = '' or v_barcode !~ '^BK-' then
       raise exception 'barcode_invalid' using errcode = 'P0001';
     end if;
   end loop;
@@ -180,9 +192,9 @@ begin
   )
   returning * into v_title;
 
-  foreach v_barcode in array p_barcodes loop
+  foreach v_barcode in array v_barcodes loop
     insert into public.copies (title_id, barcode)
-    values (v_title.id, trim(v_barcode))
+    values (v_title.id, v_barcode)
     returning * into v_copy;
 
     v_copies := v_copies || jsonb_build_array(jsonb_build_object(
@@ -201,7 +213,7 @@ begin
     jsonb_build_object(
       'title', v_title.title,
       'author', v_title.author,
-      'copy_count', cardinality(p_barcodes)
+      'copy_count', cardinality(v_barcodes)
     )
   );
 
