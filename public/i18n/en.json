@@ -46,6 +46,100 @@
       "message": "Overview stays empty until the launchpad slice. Use the sidebar to reach desk flows as they ship."
     }
   },
+  "catalog": {
+    "searchPlaceholder": "Search title or author",
+    "searchLabel": "Search titles and authors",
+    "genreFilter": "Filter by genre",
+    "allGenres": "All genres",
+    "resultCount": "{{count}} titles",
+    "addTitle": "Add title",
+    "manageCopies": "Copies",
+    "editCopy": "Edit barcode",
+    "clearFilters": "Clear filters",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "dialogClose": "Close dialog",
+    "tableCaption": "Catalog titles",
+    "availabilityLabel": "{{available}} of {{total}} copies available",
+    "columns": {
+      "title": "Title",
+      "genre": "Genre",
+      "isbn": "ISBN",
+      "availability": "Available",
+      "actions": "Actions"
+    },
+    "fields": {
+      "title": "Title",
+      "author": "Author",
+      "genre": "Genre",
+      "isbn": "ISBN",
+      "isbnHint": "Optional. Must be unique when set.",
+      "description": "Description",
+      "copyCount": "Number of copies",
+      "copyCountHint": "Each copy gets a BK- barcode automatically.",
+      "barcode": "Barcode",
+      "barcodeHint": "Must start with BK-."
+    },
+    "addDialog": {
+      "heading": "Add title",
+      "subtitle": "Create a bibliographic title and its first copies."
+    },
+    "editDialog": {
+      "heading": "Edit copy barcode"
+    },
+    "copiesDialog": {
+      "heading": "Copies",
+      "subtitle": "Update barcodes and copy status. On-loan copies change only through check-in."
+    },
+    "empty": {
+      "headline": "No titles yet",
+      "message": "Add a title to start the collection.",
+      "filteredHeadline": "No titles match",
+      "filteredMessage": "Try a different search or clear the filters."
+    },
+    "status": {
+      "available": "Available",
+      "on_loan": "On loan",
+      "on_hold_shelf": "Hold shelf",
+      "lost": "Lost",
+      "damaged": "Damaged",
+      "retired": "Retired"
+    },
+    "actions": {
+      "markLost": "Mark lost",
+      "markDamaged": "Mark damaged",
+      "markAvailable": "Mark available",
+      "retire": "Retire",
+      "unretire": "Un-retire"
+    },
+    "pagination": {
+      "prev": "Previous page",
+      "next": "Next page",
+      "nav": "Catalog pagination",
+      "summary": "Showing {{from}}–{{to}} of {{total}}"
+    },
+    "toasts": {
+      "titleAdded": "Title added to the catalog.",
+      "copyUpdated": "Copy barcode updated.",
+      "statusUpdated": "Copy status updated."
+    },
+    "errors": {
+      "loadFailed": "Could not load the catalog. Try again.",
+      "titleRequired": "Title is required",
+      "authorRequired": "Author is required",
+      "genreRequired": "Genre is required",
+      "barcodeRequired": "Barcode is required",
+      "isbnTaken": "That ISBN is already in the catalog.",
+      "barcodeTaken": "That barcode is already in use.",
+      "barcodeInvalid": "Barcode must start with BK-.",
+      "copyOnLoan": "This copy is on loan — check it in first.",
+      "adminRequired": "Only an admin can retire or un-retire a copy.",
+      "invalidTransition": "That status change is not allowed.",
+      "copyNotFound": "Copy not found.",
+      "unexpected": "Something went wrong. Try again."
+    }
+  },
   "members": {
     "title": "Members",
     "subtitle": "{{count}} members",

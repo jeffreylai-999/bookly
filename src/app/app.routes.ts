@@ -24,7 +24,7 @@ export const routes: Routes = [
         loadComponent: () => import('./overview/overview').then((m) => m.Overview),
       },
       { path: 'circulation', component: ComingSoon, data: { titleKey: 'nav.circulation' } },
-      { path: 'catalog', component: ComingSoon, data: { titleKey: 'nav.catalog' } },
+      { path: 'catalog', loadComponent: () => import('./catalog/catalog').then((m) => m.Catalog) },
       {
         path: 'members',
         loadComponent: () => import('./members/members-list').then((m) => m.MembersList),

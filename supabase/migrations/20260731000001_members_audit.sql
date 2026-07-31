@@ -1,6 +1,6 @@
--- Members slice: member_types, members, audit_log, set_member_status, log_audit.
--- status on members is RPC-only (column grants exclude it). audit_log is append-only
--- via SECURITY DEFINER helpers; actor is always derived from auth.uid().
+-- Members slice: member_types, members, set_member_status, log_audit.
+-- status on members is RPC-only (column grants exclude it). audit_log was created
+-- by the catalog migration; this slice adds log_audit and member status RPC writes.
 
 create type public.member_status as enum ('active', 'suspended', 'blocked');
 
@@ -37,26 +37,13 @@ comment on column public.members.status is 'RPC-only — excluded from INSERT/UP
 comment on column public.members.card_barcode is 'Unique scan id; must start with MBR-.';
 comment on column public.members.email is 'Nullable and not unique — families may share an address.';
 
-create table public.audit_log (
-  id uuid primary key default gen_random_uuid(),
-  actor uuid not null references public.profiles (id),
-  action text not null,
-  entity_type text not null,
-  entity_id uuid not null,
-  detail jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
-);
-
-comment on table public.audit_log is 'Append-only history; inserts only via SECURITY DEFINER RPCs.';
-
-create index audit_log_created_at_idx on public.audit_log (created_at desc);
-create index audit_log_entity_idx on public.audit_log (entity_type, entity_id);
+-- audit_log already created by the catalog migration; add the entity lookup index.
+create index if not exists audit_log_entity_idx on public.audit_log (entity_type, entity_id);
 create index members_name_idx on public.members (name);
 create index members_status_idx on public.members (status);
 
 alter table public.member_types enable row level security;
 alter table public.members enable row level security;
-alter table public.audit_log enable row level security;
 
 grant usage on type public.member_status to authenticated;
 
@@ -98,18 +85,6 @@ create policy members_update_authenticated
   to authenticated
   using (true)
   with check (true);
-
--- audit_log: readable by authenticated (Audit viewer is admin-gated in the app);
--- no direct writes for anyone except service_role / definer functions.
-revoke all on table public.audit_log from anon, authenticated;
-grant select on table public.audit_log to authenticated;
-grant select, insert, update, delete on table public.audit_log to service_role;
-
-create policy audit_log_select_authenticated
-  on public.audit_log
-  for select
-  to authenticated
-  using (true);
 
 -- ---------------------------------------------------------------------------
 -- log_audit: client-side simple edits. Actor from auth.uid(); action allowlist.

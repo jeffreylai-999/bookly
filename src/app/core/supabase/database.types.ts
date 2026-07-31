@@ -37,28 +37,28 @@ export type Database = {
       audit_log: {
         Row: {
           action: string
-          actor: string
+          actor: string | null
           created_at: string
           detail: Json
-          entity_id: string
+          entity_id: string | null
           entity_type: string
           id: string
         }
         Insert: {
           action: string
-          actor: string
+          actor?: string | null
           created_at?: string
           detail?: Json
-          entity_id: string
+          entity_id?: string | null
           entity_type: string
           id?: string
         }
         Update: {
           action?: string
-          actor?: string
+          actor?: string | null
           created_at?: string
           detail?: Json
-          entity_id?: string
+          entity_id?: string | null
           entity_type?: string
           id?: string
         }
@@ -68,6 +68,38 @@ export type Database = {
             columns: ["actor"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      copies: {
+        Row: {
+          barcode: string
+          created_at: string
+          id: string
+          status: Database["public"]["Enums"]["copy_status"]
+          title_id: string
+        }
+        Insert: {
+          barcode: string
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["copy_status"]
+          title_id: string
+        }
+        Update: {
+          barcode?: string
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["copy_status"]
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "copies_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
             referencedColumns: ["id"]
           },
         ]
@@ -179,11 +211,56 @@ export type Database = {
         }
         Relationships: []
       }
+      titles: {
+        Row: {
+          author: string
+          created_at: string
+          description: string | null
+          genre: string
+          id: string
+          isbn: string | null
+          replacement_cost: number | null
+          title: string
+        }
+        Insert: {
+          author: string
+          created_at?: string
+          description?: string | null
+          genre: string
+          id?: string
+          isbn?: string | null
+          replacement_cost?: number | null
+          title: string
+        }
+        Update: {
+          author?: string
+          created_at?: string
+          description?: string | null
+          genre?: string
+          id?: string
+          isbn?: string | null
+          replacement_cost?: number | null
+          title?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      add_title_with_copies: {
+        Args: {
+          p_author: string
+          p_barcodes: string[]
+          p_description: string
+          p_genre: string
+          p_isbn: string
+          p_replacement_cost: number
+          p_title: string
+        }
+        Returns: Json
+      }
       log_audit: {
         Args: {
           p_action: string
@@ -192,6 +269,25 @@ export type Database = {
           p_entity_type: string
         }
         Returns: string
+      }
+      set_copy_status: {
+        Args: {
+          p_copy_id: string
+          p_status: Database["public"]["Enums"]["copy_status"]
+        }
+        Returns: {
+          barcode: string
+          created_at: string
+          id: string
+          status: Database["public"]["Enums"]["copy_status"]
+          title_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "copies"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_member_status: {
         Args: {
@@ -219,6 +315,13 @@ export type Database = {
       }
     }
     Enums: {
+      copy_status:
+        | "available"
+        | "on_loan"
+        | "on_hold_shelf"
+        | "lost"
+        | "damaged"
+        | "retired"
       member_status: "active" | "suspended" | "blocked"
       profile_role: "staff" | "admin"
     }
@@ -351,6 +454,14 @@ export const Constants = {
   },
   public: {
     Enums: {
+      copy_status: [
+        "available",
+        "on_loan",
+        "on_hold_shelf",
+        "lost",
+        "damaged",
+        "retired",
+      ],
       member_status: ["active", "suspended", "blocked"],
       profile_role: ["staff", "admin"],
     },
