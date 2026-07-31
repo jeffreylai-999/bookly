@@ -29,7 +29,7 @@ create table public.members (
   card_barcode text not null,
   created_at timestamptz not null default now(),
   constraint members_card_barcode_unique unique (card_barcode),
-  constraint members_card_barcode_prefix check (card_barcode ~ '^MBR-')
+  constraint members_card_barcode_prefix check (card_barcode ~ '^MBR-.+')
 );
 
 comment on table public.members is 'Library members; status changes only via set_member_status.';
@@ -208,14 +208,9 @@ begin
     return v_row;
   end if;
 
-  -- Entering or leaving blocked, or any non suspend/lift, requires admin.
-  if v_role <> 'admin' then
-    if p_status = 'blocked' or v_before = 'blocked' then
-      raise exception 'admin_required' using errcode = 'P0001';
-    end if;
-    if p_status not in ('active', 'suspended') then
-      raise exception 'admin_required' using errcode = 'P0001';
-    end if;
+  -- Entering or leaving blocked requires admin (staff may only active <-> suspended).
+  if v_role <> 'admin' and (p_status = 'blocked' or v_before = 'blocked') then
+    raise exception 'admin_required' using errcode = 'P0001';
   end if;
 
   update public.members

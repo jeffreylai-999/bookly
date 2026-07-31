@@ -161,6 +161,12 @@ begin
   end if;
 end $$;
 
+-- Lift back to active so admin block test starts from a known state.
+select public.set_member_status(
+  'bbbbbbbb-bbbb-cccc-dddd-eeeeeeee0001',
+  'active'
+);
+
 -- Admin can block.
 reset role;
 set local role authenticated;
@@ -182,6 +188,43 @@ begin
     raise exception 'admin set_member_status should block the member';
   end if;
 end $$;
+
+-- Staff cannot unblock.
+reset role;
+set local role authenticated;
+set local request.jwt.claim.sub = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeee0001';
+set local request.jwt.claim.role = 'authenticated';
+set local request.jwt.claims = '{"sub":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeee0001","role":"authenticated"}';
+
+do $$
+declare
+  raised boolean := false;
+begin
+  begin
+    perform public.set_member_status(
+      'bbbbbbbb-bbbb-cccc-dddd-eeeeeeee0001',
+      'active'
+    );
+  exception
+    when others then
+      if sqlerrm like 'admin_required%' then
+        raised := true;
+      else
+        raise;
+      end if;
+  end;
+
+  if not raised then
+    raise exception 'expected admin_required when staff unblocks a member';
+  end if;
+end $$;
+
+-- Resume admin session for log_audit cases.
+reset role;
+set local role authenticated;
+set local request.jwt.claim.sub = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeee0002';
+set local request.jwt.claim.role = 'authenticated';
+set local request.jwt.claims = '{"sub":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeee0002","role":"authenticated"}';
 
 -- ---------------------------------------------------------------------------
 -- log_audit: rejects flow-reserved codes; actor from session (not a param).

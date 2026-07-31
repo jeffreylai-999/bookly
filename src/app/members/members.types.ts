@@ -6,7 +6,6 @@ export type MemberType = Tables<'member_types'>;
 
 export type MemberTypeRef = Pick<MemberType, 'id' | 'name'>;
 
-/** Member row with joined type name for list/detail views. */
 export type MemberListItem = Member & {
   member_type: MemberTypeRef | null;
 };

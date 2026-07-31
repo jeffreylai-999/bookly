@@ -25,11 +25,18 @@ import {
 import { MembersStore } from './members.store';
 import {
   MEMBER_CARD_PATTERN,
+  MEMBER_CARD_PREFIX,
   statusBadgeTone,
   type MemberFormValue,
   type MemberListItem,
   type MemberStatus,
 } from './members.types';
+
+const STATUS_LABEL_KEYS: Record<MemberStatus, string> = {
+  active: 'members.status.active',
+  suspended: 'members.status.suspended',
+  blocked: 'members.status.blocked',
+};
 
 @Component({
   selector: 'app-members-list',
@@ -323,7 +330,7 @@ export class MembersList {
     memberTypeId: '',
     email: '',
     phone: '',
-    cardBarcode: 'MBR-',
+    cardBarcode: `${MEMBER_CARD_PREFIX}`,
   });
 
   protected readonly memberForm = form(this.model, (path) => {
@@ -338,9 +345,10 @@ export class MembersList {
 
   protected readonly statusOptions = computed<SelectOption[]>(() => [
     { value: 'all', label: this.transloco.translate('members.status.all') },
-    { value: 'active', label: this.transloco.translate('members.status.active') },
-    { value: 'suspended', label: this.transloco.translate('members.status.suspended') },
-    { value: 'blocked', label: this.transloco.translate('members.status.blocked') },
+    ... (Object.keys(STATUS_LABEL_KEYS) as MemberStatus[]).map((status) => ({
+      value: status,
+      label: this.transloco.translate(STATUS_LABEL_KEYS[status]),
+    })),
   ]);
 
   protected readonly columns = computed<TableColumn<MemberListItem>[]>(() => [
@@ -408,18 +416,7 @@ export class MembersList {
   }
 
   protected statusLabel(status: MemberStatus): string {
-    switch (status) {
-      case 'active':
-        return this.transloco.translate('members.status.active');
-      case 'suspended':
-        return this.transloco.translate('members.status.suspended');
-      case 'blocked':
-        return this.transloco.translate('members.status.blocked');
-      default: {
-        const _exhaustive: never = status;
-        return _exhaustive;
-      }
-    }
+    return this.transloco.translate(STATUS_LABEL_KEYS[status]);
   }
 
   protected typeTone(name: string | undefined): BadgeTone {
@@ -475,7 +472,7 @@ export class MembersList {
       memberTypeId: this.store.memberTypes()[0]?.id ?? '',
       email: '',
       phone: '',
-      cardBarcode: 'MBR-',
+      cardBarcode: `${MEMBER_CARD_PREFIX}`,
     });
     this.formOpen.set(true);
   }
@@ -495,6 +492,10 @@ export class MembersList {
 
   protected async onStatusAction(row: MemberListItem, status: MemberStatus): Promise<void> {
     const { error } = await this.store.setMemberStatus(row.id, status);
+    if (error === 'load_failed') {
+      this.toast.error(this.transloco.translate('members.errors.loadFailed'));
+      return;
+    }
     if (error) {
       this.toast.error(this.transloco.translate('members.toasts.statusFailed'));
       return;
@@ -512,6 +513,11 @@ export class MembersList {
       const result = editing
         ? await this.store.updateMember(editing, value)
         : await this.store.createMember(value);
+      if (result.error === 'load_failed') {
+        this.formOpen.set(false);
+        this.toast.error(this.transloco.translate('members.errors.loadFailed'));
+        return;
+      }
       if (result.error && result.error !== 'audit_failed') {
         this.formError.set(this.transloco.translate('members.form.errors.saveFailed'));
         return;
