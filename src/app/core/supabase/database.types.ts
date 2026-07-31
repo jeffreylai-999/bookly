@@ -34,6 +34,124 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string
+          actor: string
+          created_at: string
+          detail: Json
+          entity_id: string
+          entity_type: string
+          id: string
+        }
+        Insert: {
+          action: string
+          actor: string
+          created_at?: string
+          detail?: Json
+          entity_id: string
+          entity_type: string
+          id?: string
+        }
+        Update: {
+          action?: string
+          actor?: string
+          created_at?: string
+          detail?: Json
+          entity_id?: string
+          entity_type?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_actor_fkey"
+            columns: ["actor"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_types: {
+        Row: {
+          borrow_cap: number
+          created_at: string
+          fine_rate_per_day: number
+          hold_expiry_days: number
+          id: string
+          loan_period_days: number
+          name: string
+          renewal_limit: number
+        }
+        Insert: {
+          borrow_cap: number
+          created_at?: string
+          fine_rate_per_day: number
+          hold_expiry_days: number
+          id?: string
+          loan_period_days: number
+          name: string
+          renewal_limit: number
+        }
+        Update: {
+          borrow_cap?: number
+          created_at?: string
+          fine_rate_per_day?: number
+          hold_expiry_days?: number
+          id?: string
+          loan_period_days?: number
+          name?: string
+          renewal_limit?: number
+        }
+        Relationships: []
+      }
+      members: {
+        Row: {
+          avatar_url: string | null
+          card_barcode: string
+          created_at: string
+          email: string | null
+          id: string
+          joined_at: string
+          member_type_id: string
+          name: string
+          phone: string | null
+          status: Database["public"]["Enums"]["member_status"]
+        }
+        Insert: {
+          avatar_url?: string | null
+          card_barcode: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          joined_at?: string
+          member_type_id: string
+          name: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["member_status"]
+        }
+        Update: {
+          avatar_url?: string | null
+          card_barcode?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          joined_at?: string
+          member_type_id?: string
+          name?: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["member_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "members_member_type_id_fkey"
+            columns: ["member_type_id"]
+            isOneToOne: false
+            referencedRelation: "member_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -66,9 +184,42 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      log_audit: {
+        Args: {
+          p_action: string
+          p_detail?: Json
+          p_entity_id: string
+          p_entity_type: string
+        }
+        Returns: string
+      }
+      set_member_status: {
+        Args: {
+          p_member_id: string
+          p_status: Database["public"]["Enums"]["member_status"]
+        }
+        Returns: {
+          avatar_url: string | null
+          card_barcode: string
+          created_at: string
+          email: string | null
+          id: string
+          joined_at: string
+          member_type_id: string
+          name: string
+          phone: string | null
+          status: Database["public"]["Enums"]["member_status"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "members"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
+      member_status: "active" | "suspended" | "blocked"
       profile_role: "staff" | "admin"
     }
     CompositeTypes: {
@@ -200,6 +351,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      member_status: ["active", "suspended", "blocked"],
       profile_role: ["staff", "admin"],
     },
   },

@@ -76,6 +76,36 @@ async function upsertAuthUser(user) {
   return data.user.id;
 }
 
+const MEMBER_TYPES = {
+  adult: '11111111-1111-1111-1111-111111111101',
+  student: '11111111-1111-1111-1111-111111111102',
+  senior: '11111111-1111-1111-1111-111111111103',
+};
+
+const SAMPLE_MEMBERS = [
+  {
+    name: 'Ada Lovelace',
+    member_type_id: MEMBER_TYPES.adult,
+    email: 'ada@example.com',
+    phone: '555-0101',
+    card_barcode: 'MBR-1001',
+  },
+  {
+    name: 'Alan Turing',
+    member_type_id: MEMBER_TYPES.student,
+    email: 'alan@example.com',
+    phone: '555-0102',
+    card_barcode: 'MBR-1002',
+  },
+  {
+    name: 'Grace Hopper',
+    member_type_id: MEMBER_TYPES.senior,
+    email: 'grace@example.com',
+    phone: '555-0103',
+    card_barcode: 'MBR-1003',
+  },
+];
+
 async function main() {
   for (const user of SEED_USERS) {
     const id = await upsertAuthUser(user);
@@ -92,6 +122,15 @@ async function main() {
     if (error) throw error;
     console.log(`Seeded ${user.role}: ${user.email}`);
   }
+
+  for (const member of SAMPLE_MEMBERS) {
+    const { error } = await admin.from('members').upsert(member, {
+      onConflict: 'card_barcode',
+    });
+    if (error) throw error;
+    console.log(`Seeded member: ${member.name} (${member.card_barcode})`);
+  }
+
   console.log('Done. Demo passwords are in scripts/seed-auth.mjs (local only).');
 }
 
