@@ -44,6 +44,10 @@ export const AUDIT_ACTION_CODES = [
   'fine.waive',
   'payment.record',
   'payment.void',
+  'member_type.create',
+  'member_type.update',
+  'member_type.delete',
+  'settings.update',
 ] as const;
 
 export type AuditActionCode = (typeof AUDIT_ACTION_CODES)[number];
@@ -56,6 +60,8 @@ export const AUDIT_ENTITY_TYPES = [
   'hold',
   'fine',
   'payment',
+  'member_type',
+  'app_settings',
 ] as const;
 
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];

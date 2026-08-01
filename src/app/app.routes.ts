@@ -43,7 +43,7 @@ export const routes: Routes = [
       {
         path: 'settings',
         canActivate: [adminGuard],
-        component: ComingSoon,
+        loadComponent: () => import('./settings/settings').then((m) => m.Settings),
         data: { titleKey: 'nav.settings' },
       },
       {

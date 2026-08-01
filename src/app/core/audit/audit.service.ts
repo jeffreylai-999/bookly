@@ -9,7 +9,11 @@ export type ClientAuditAction =
   | 'title.create'
   | 'title.update'
   | 'copy.create'
-  | 'copy.update';
+  | 'copy.update'
+  | 'member_type.create'
+  | 'member_type.update'
+  | 'member_type.delete'
+  | 'settings.update';
 
 export interface AuditLogInput {
   action: ClientAuditAction;
