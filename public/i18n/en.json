@@ -367,6 +367,162 @@
       "copyRetired": "That copy is retired and cannot be checked out.",
       "duplicateBarcode": "That copy is already in this check-out.",
       "unexpected": "Check-out failed. Try again in a moment."
+    },
+    "desk": {
+      "tabsLabel": "Circulation desk mode",
+      "checkout": "Check out",
+      "checkin": "Check in",
+      "loans": "Loans"
+    },
+    "checkin": {
+      "title": "Check in",
+      "subtitle": "Scan a copy on loan, pick its condition, and confirm the return.",
+      "scan": {
+        "heading": "Copy",
+        "hint": "Scan a BK- barcode for a copy currently on loan.",
+        "scanPlaceholder": "Scan copy barcode",
+        "scanLabel": "Scan copy barcode",
+        "emptyHeadline": "No copy scanned",
+        "emptyMessage": "Scan a copy on loan to start its check-in.",
+        "clear": "Clear copy"
+      },
+      "preview": {
+        "member": "Member",
+        "due": "Due {{due}}",
+        "onTime": "On time",
+        "overdue": "{{days}} days late · projected fine {{fine}}"
+      },
+      "condition": {
+        "heading": "Condition",
+        "hint": "How did the copy come back?",
+        "label": "Return condition",
+        "ok": "OK",
+        "damaged": "Damaged",
+        "lost": "Lost",
+        "okNote": "Back on the shelf — any late days become an overdue fine.",
+        "damagedNote": "Damage stacks with any overdue fine. The flow ends here — no hold fill.",
+        "lostNote": "Replacement cost replaces any overdue fine. The flow ends here — no hold fill.",
+        "damagedAmount": "Damage charge",
+        "damagedAmountHint": "Defaults to the library damage fee; adjust for the actual damage."
+      },
+      "confirm": {
+        "action": "Check in",
+        "working": "Checking in…"
+      },
+      "result": {
+        "heading": "Checked in",
+        "copyAvailable": "Copy is back on the shelf.",
+        "copyDamaged": "Copy is marked damaged.",
+        "copyLost": "Copy is marked lost.",
+        "daysLate": "{{days}} days late",
+        "finesHeading": "Fines created",
+        "noFines": "No fines created.",
+        "fineLine": "{{reason}} · {{amount}}",
+        "accrualOverdue": "{{days}} days × {{rate}} per day",
+        "accrualDamagedDefault": "Library damage fee",
+        "accrualDamagedOverride": "Staff override · default {{feeDefault}}",
+        "accrualLostReplacement": "Title replacement cost",
+        "accrualLostDefault": "Library lost-item default",
+        "next": "Scan next copy"
+      },
+      "reason": {
+        "overdue": "Overdue",
+        "damaged": "Damaged",
+        "lost": "Lost"
+      },
+      "errors": {
+        "notAuthenticated": "Sign in again to check in.",
+        "profileMissing": "Your staff profile could not be loaded.",
+        "copyNotFound": "No copy matches that barcode.",
+        "loanNotFound": "That copy is not on loan.",
+        "invalidCondition": "Pick a condition before confirming.",
+        "damagedAmountUnexpected": "A damage charge only applies to a damaged return.",
+        "invalidDamagedAmount": "Enter a damage charge of zero or more.",
+        "unexpected": "Check-in failed. Try again in a moment."
+      }
+    },
+    "loans": {
+      "title": "Loans",
+      "subtitle": "{{count}} loans",
+      "tabsLabel": "Loan list",
+      "active": "Active",
+      "overdue": "Overdue",
+      "returned": "Returned",
+      "tableCaption": "Circulation loans",
+      "columns": {
+        "member": "Member",
+        "title": "Title",
+        "barcode": "Barcode",
+        "due": "Due",
+        "daysLate": "Days late",
+        "projectedFine": "Projected fine",
+        "returnedAt": "Returned"
+      },
+      "empty": {
+        "activeHeadline": "No active loans",
+        "activeMessage": "Checked-out copies appear here.",
+        "overdueHeadline": "Nothing overdue",
+        "overdueMessage": "Loans past their due date appear here.",
+        "returnedHeadline": "No returned loans yet",
+        "returnedMessage": "Checked-in copies appear here with their return time."
+      },
+      "errors": {
+        "loadFailed": "Couldn't load loans. Try again."
+      },
+      "pagination": {
+        "prev": "Previous page",
+        "next": "Next page",
+        "nav": "Loans pagination",
+        "summary": "Showing {{from}}–{{to}} of {{total}}"
+      }
+    }
+  },
+  "fines": {
+    "title": "Fines",
+    "subtitle": "{{count}} fines",
+    "filtersLabel": "Fine status filter",
+    "filter": {
+      "all": "All",
+      "outstanding": "Outstanding",
+      "partial": "Partial",
+      "paid": "Paid",
+      "waived": "Waived"
+    },
+    "status": {
+      "outstanding": "Outstanding",
+      "partial": "Partial",
+      "paid": "Paid",
+      "waived": "Waived"
+    },
+    "reason": {
+      "overdue": "Overdue",
+      "damaged": "Damaged",
+      "lost": "Lost"
+    },
+    "tableCaption": "Member fines",
+    "columns": {
+      "member": "Member",
+      "reason": "Reason",
+      "amount": "Amount",
+      "paid": "Paid",
+      "balance": "Balance",
+      "status": "Status",
+      "created": "Created"
+    },
+    "empty": {
+      "headline": "No fines yet",
+      "message": "Fines are born at check-in — overdue, damaged, and lost returns land here.",
+      "filteredHeadline": "No fines match",
+      "filteredMessage": "Try a different status filter."
+    },
+    "errors": {
+      "loadFailed": "Couldn't load fines. Check your connection and try again."
+    },
+    "pagination": {
+      "prev": "Previous page",
+      "next": "Next page",
+      "nav": "Fines pagination",
+      "summary": "Showing {{from}}–{{to}} of {{total}}"
     }
   },
   "scan": {
