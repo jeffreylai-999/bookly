@@ -15,7 +15,7 @@ function copyStatusToError(status: CopyStatus): CheckoutError | null {
     case 'on_loan':
       return 'copy_on_loan';
     case 'on_hold_shelf':
-      return 'copy_on_hold_shelf';
+      return null;
     case 'lost':
       return 'copy_lost';
     case 'damaged':

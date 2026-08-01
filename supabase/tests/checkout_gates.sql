@@ -76,6 +76,13 @@ insert into public.members (
     '11111111-1111-1111-1111-111111111101',
     'active',
     'MBR-CHECKOUT-5'
+  ),
+  (
+    'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa7',
+    'Waiting Hold Member',
+    '11111111-1111-1111-1111-111111111101',
+    'active',
+    'MBR-CHECKOUT-7'
   );
 
 insert into public.titles (id, title, author, genre)
@@ -100,7 +107,32 @@ values
   ('c0cccccc-cccc-cccc-cccc-cccccccccc07', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-RET', 'retired'),
   ('c0cccccc-cccc-cccc-cccc-cccccccccc08', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-CAP-1', 'available'),
   ('c0cccccc-cccc-cccc-cccc-cccccccccc09', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-CAP-2', 'available'),
-  ('c0cccccc-cccc-cccc-cccc-cccccccccc10', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-FINE', 'available');
+  ('c0cccccc-cccc-cccc-cccc-cccccccccc10', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-FINE', 'available'),
+  ('c0cccccc-cccc-cccc-cccc-cccccccccc11', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-HOLD-WAIT', 'available');
+
+insert into public.holds (
+  id, title_id, member_id, queue_position, status, copy_id, ready_at, expires_at
+) values
+  (
+    'c0eeeeee-eeee-eeee-eeee-eeeeeeeeeee1',
+    'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+    1,
+    'ready',
+    'c0cccccc-cccc-cccc-cccc-cccccccccc04',
+    now(),
+    now() + interval '3 days'
+  ),
+  (
+    'c0eeeeee-eeee-eeee-eeee-eeeeeeeeeee2',
+    'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa7',
+    2,
+    'waiting',
+    null,
+    null,
+    null
+  );
 
 -- Seed an outstanding fine above the default block threshold for Fine Member.
 insert into public.fines (id, member_id, amount, amount_paid, reason, status)
@@ -246,6 +278,50 @@ begin
 end;
 $$;
 
+-- A shelf copy is available only to the member whose ready hold owns it.
+select pg_temp.expect_checkout_error(
+  'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa7',
+  array['BK-CHK-HOLD']::text[],
+  'copy_on_hold_shelf'
+);
+
+do $$
+begin
+  perform public.checkout(
+    'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+    array['BK-CHK-HOLD']::text[]
+  );
+
+  if (
+    select status from public.holds
+    where id = 'c0eeeeee-eeee-eeee-eeee-eeeeeeeeeee1'
+  ) <> 'fulfilled' then
+    raise exception 'ready hold should be fulfilled by checkout';
+  end if;
+
+  if (
+    select status from public.copies
+    where barcode = 'BK-CHK-HOLD'
+  ) <> 'on_loan' then
+    raise exception 'fulfilled shelf copy should be on_loan';
+  end if;
+end $$;
+
+do $$
+begin
+  perform public.checkout(
+    'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa7',
+    array['BK-CHK-HOLD-WAIT']::text[]
+  );
+
+  if (
+    select status from public.holds
+    where id = 'c0eeeeee-eeee-eeee-eeee-eeeeeeeeeee2'
+  ) <> 'fulfilled' then
+    raise exception 'waiting hold should be fulfilled by title checkout';
+  end if;
+end $$;
+
 select pg_temp.expect_checkout_error(
   'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2',
   array['BK-CHK-AVAIL-2']::text[],
@@ -290,11 +366,6 @@ select pg_temp.expect_checkout_error(
   'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
   array['BK-CHK-ONLOAN']::text[],
   'copy_on_loan'
-);
-select pg_temp.expect_checkout_error(
-  'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
-  array['BK-CHK-HOLD']::text[],
-  'copy_on_hold_shelf'
 );
 select pg_temp.expect_checkout_error(
   'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
