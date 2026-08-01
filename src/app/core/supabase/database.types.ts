@@ -255,6 +255,13 @@ export type Database = {
             foreignKeyName: "holds_title_id_fkey"
             columns: ["title_id"]
             isOneToOne: false
+            referencedRelation: "overdue_loans"
+            referencedColumns: ["title_id"]
+          },
+          {
+            foreignKeyName: "holds_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
@@ -636,6 +643,27 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "holds"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      renew_loan: {
+        Args: { p_loan_id: string }
+        Returns: {
+          checked_out_at: string
+          checked_out_by: string | null
+          copy_id: string
+          created_at: string
+          due_at: string
+          id: string
+          member_id: string
+          renew_count: number
+          returned_at: string | null
+          status: Database["public"]["Enums"]["loan_status"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "loans"
           isOneToOne: true
           isSetofReturn: false
         }
