@@ -18,6 +18,7 @@ export class LoansStore {
   private readonly pageState = signal(1);
   private readonly loadingState = signal(false);
   private readonly errorState = signal<string | null>(null);
+  private readonly currencyState = signal('USD');
 
   readonly tab = this.tabState.asReadonly();
   readonly loans = this.loansState.asReadonly();
@@ -27,11 +28,16 @@ export class LoansStore {
   readonly pageSize = PAGE_SIZE;
   readonly loading = this.loadingState.asReadonly();
   readonly error = this.errorState.asReadonly();
+  readonly currency = this.currencyState.asReadonly();
   readonly empty = computed(
     () => !this.loadingState() && !this.errorState() && this.totalState() === 0,
   );
 
   async init(): Promise<void> {
+    const settings = await this.repo.getSettings();
+    if (settings.row) {
+      this.currencyState.set(settings.row.currency);
+    }
     await this.load();
   }
 

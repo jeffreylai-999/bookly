@@ -416,7 +416,7 @@ describe('CirculationRepository', () => {
     expect(result.rows[0]?.member).toEqual({ id: 'm1', name: 'Ada', card_barcode: 'MBR-1' });
   });
 
-  it('lists overdue loans from the overdue_loans view, latest fine first', async () => {
+  it('lists overdue loans from the overdue_loans view, most days late first', async () => {
     const fromCalls: string[] = [];
     const orderCalls: [string, { ascending: boolean }][] = [];
     const client = {

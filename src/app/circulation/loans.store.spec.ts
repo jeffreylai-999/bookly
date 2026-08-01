@@ -12,6 +12,10 @@ function setup(repoOverrides: Record<string, unknown> = {}) {
         useValue: {
           listLoans: vi.fn().mockResolvedValue({ rows: [], total: 0, error: null }),
           listOverdue: vi.fn().mockResolvedValue({ rows: [], total: 0, error: null }),
+          getSettings: vi.fn().mockResolvedValue({
+            row: { currency: 'EUR', damaged_fee_default: 10 },
+            error: null,
+          }),
           ...repoOverrides,
         },
       },
@@ -31,6 +35,7 @@ describe('LoansStore', () => {
     expect(store.tab()).toBe('active');
     expect(store.loans()).toHaveLength(1);
     expect(store.total()).toBe(1);
+    expect(store.currency()).toBe('EUR');
     expect(store.empty()).toBe(false);
   });
 
@@ -40,10 +45,9 @@ describe('LoansStore', () => {
       .mockResolvedValue({ rows: [{ loan_id: 'l1', days_late: 3 }], total: 1, error: null });
     const store = setup({ listOverdue });
     await store.init();
-    store.setPage(2);
+    await store.setPage(2);
 
-    store.setTab('overdue');
-    await vi.waitFor(() => expect(store.loading()).toBe(false));
+    await store.setTab('overdue');
 
     expect(listOverdue).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
     expect(store.page()).toBe(1);
@@ -55,17 +59,11 @@ describe('LoansStore', () => {
     const store = setup({ listLoans });
     await store.init();
 
-    store.setTab('returned');
-    await vi.waitFor(() => expect(listLoans).toHaveBeenCalledWith('returned', {
-      page: 1,
-      pageSize: 10,
-    }));
+    await store.setTab('returned');
+    expect(listLoans).toHaveBeenCalledWith('returned', { page: 1, pageSize: 10 });
 
-    store.setPage(3);
-    await vi.waitFor(() => expect(listLoans).toHaveBeenCalledWith('returned', {
-      page: 3,
-      pageSize: 10,
-    }));
+    await store.setPage(3);
+    expect(listLoans).toHaveBeenCalledWith('returned', { page: 3, pageSize: 10 });
   });
 
   it('surfaces load errors and empties the list', async () => {
