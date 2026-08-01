@@ -19,8 +19,9 @@ export interface AuditLogInput {
 }
 
 /**
- * Read-side helper for the audit viewer later; write path for simple single-table
- * edits. Actor is never a parameter — `log_audit` derives it from `auth.uid()`.
+ * Write path for simple single-table edits (`log_audit`). Actor is never a
+ * parameter — the RPC derives it from `auth.uid()`. Audit log reads live in
+ * `AuditRepository` (feature aggregate), matching Members/Catalog layering.
  */
 @Service()
 export class AuditService {

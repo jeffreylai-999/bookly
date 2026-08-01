@@ -254,7 +254,8 @@
     },
     "errors": {
       "loadFailed": "Couldn't load the audit log. Check your connection and try again.",
-      "actorsLoadFailed": "Couldn't load staff actors. Actor filter is unavailable until this recovers."
+      "actorsLoadFailed": "Couldn't load staff actors. Actor filter is unavailable until this recovers.",
+      "dateRangeInvalid": "From date must be on or before the to date."
     },
     "pagination": {
       "prev": "Previous page",

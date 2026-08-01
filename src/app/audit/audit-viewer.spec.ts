@@ -54,6 +54,7 @@ function createStoreFake(overrides: Partial<Record<string, unknown>> = {}) {
     actorsError: signal<string | null>(null).asReadonly(),
     empty: signal(false).asReadonly(),
     hasActiveFilters: signal(false).asReadonly(),
+    dateRangeInvalid: signal(false).asReadonly(),
     init: vi.fn().mockResolvedValue(undefined),
     setActorId: vi.fn(),
     setAction: vi.fn(),
@@ -190,6 +191,41 @@ describe('AuditViewer', () => {
       .compileComponents();
 
     const fixture = TestBed.createComponent(AuditViewer);
+    await fixture.whenStable();
+
+    const results = await axe.run(fixture.nativeElement as HTMLElement, {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] },
+    });
+    expect(results.violations).toEqual([]);
+  });
+
+  it('passes AXE wcag2a/aa with the detail dialog open', async () => {
+    await TestBed.configureTestingModule({
+      imports: [
+        AuditViewer,
+        TranslocoTestingModule.forRoot({
+          langs: { en },
+          translocoConfig: { availableLangs: ['en'], defaultLang: 'en' },
+          preloadLangs: true,
+        }),
+      ],
+      providers: [
+        lucideIcons,
+        provideTranslocoMissingHandler(ThrowingMissingKeyHandler),
+        { provide: AuditStore, useValue: createStoreFake() },
+      ],
+    })
+      .overrideComponent(AuditViewer, { set: { providers: [] } })
+      .compileComponents();
+
+    const fixture = TestBed.createComponent(AuditViewer);
+    await fixture.whenStable();
+
+    const detailBtn = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((btn) => btn.textContent?.includes('View detail'));
+    detailBtn!.click();
+    fixture.detectChanges();
     await fixture.whenStable();
 
     const results = await axe.run(fixture.nativeElement as HTMLElement, {
