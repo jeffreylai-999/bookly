@@ -92,6 +92,32 @@ describe('CirculationStore', () => {
     expect(store.queuedCopies()).toHaveLength(1);
   });
 
+  it('queues a shelf copy for server-side hold ownership enforcement', async () => {
+    const shelfCopy: CheckoutCopy = { ...copy, status: 'on_hold_shelf' };
+
+    await TestBed.configureTestingModule({
+      providers: [
+        CirculationStore,
+        {
+          provide: CirculationRepository,
+          useValue: {
+            findMemberByCard: vi.fn(),
+            findCopyByBarcode: vi.fn().mockResolvedValue({ row: shelfCopy, error: null }),
+            searchMembers: vi.fn(),
+            checkout: vi.fn(),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const store = TestBed.inject(CirculationStore);
+
+    const result = await store.queueCopyByBarcode('BK-001');
+
+    expect(result.error).toBeNull();
+    expect(store.queuedCopies()).toEqual([shelfCopy]);
+  });
+
   it('confirms checkout then clears the queue', async () => {
     const checkout = vi.fn().mockResolvedValue({
       ok: true,
