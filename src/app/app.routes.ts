@@ -25,7 +25,8 @@ export const routes: Routes = [
       },
       {
         path: 'circulation',
-        loadComponent: () => import('./circulation/circulation').then((m) => m.Circulation),
+        loadComponent: () =>
+          import('./circulation/circulation-desk').then((m) => m.CirculationDesk),
       },
       { path: 'catalog', loadComponent: () => import('./catalog/catalog').then((m) => m.Catalog) },
       {
@@ -33,7 +34,11 @@ export const routes: Routes = [
         loadComponent: () => import('./members/members-list').then((m) => m.MembersList),
       },
       { path: 'holds', component: ComingSoon, data: { titleKey: 'nav.holds' } },
-      { path: 'fines', component: ComingSoon, data: { titleKey: 'nav.fines' } },
+      {
+        path: 'fines',
+        loadComponent: () => import('./fines/fines-list').then((m) => m.FinesList),
+        data: { titleKey: 'nav.fines' },
+      },
       { path: 'reports', component: ComingSoon, data: { titleKey: 'nav.reports' } },
       {
         path: 'settings',
