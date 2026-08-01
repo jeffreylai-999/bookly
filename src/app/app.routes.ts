@@ -41,7 +41,7 @@ export const routes: Routes = [
       {
         path: 'audit',
         canActivate: [adminGuard],
-        component: ComingSoon,
+        loadComponent: () => import('./audit/audit-viewer').then((m) => m.AuditViewer),
         data: { titleKey: 'nav.audit' },
       },
     ],
