@@ -317,4 +317,26 @@ select pg_temp.expect_checkout_error(
   'copy_not_found'
 );
 
+-- Duplicates must raise duplicate_barcode, not preempt as member_borrow_cap.
+-- Fixture: cap=1, zero active loans, two identical barcodes → distinct count is 1.
+set local role service_role;
+insert into public.members (id, name, member_type_id, status, card_barcode)
+values (
+  'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa6',
+  'Dup Cap Member',
+  'c0ffffff-ffff-ffff-ffff-ffffffffffff',
+  'active',
+  'MBR-CHECKOUT-6'
+);
+set local role authenticated;
+set local request.jwt.claim.sub = 'c1111111-1111-1111-1111-111111111111';
+set local request.jwt.claim.role = 'authenticated';
+set local request.jwt.claims = '{"sub":"c1111111-1111-1111-1111-111111111111","role":"authenticated"}';
+
+select pg_temp.expect_checkout_error(
+  'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa6',
+  array['BK-CHK-CAP-2', 'BK-CHK-CAP-2']::text[],
+  'duplicate_barcode'
+);
+
 rollback;
