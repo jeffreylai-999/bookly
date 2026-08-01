@@ -400,6 +400,7 @@ declare
   v_barcode text;
   v_copy public.copies;
   v_shelf_hold public.holds;
+  v_shelf_found boolean;
   v_shelf_expired boolean;
   v_active_hold public.holds;
   v_loan public.loans;
@@ -527,14 +528,16 @@ begin
     -- The ready hold tying this shelf copy to a member, if any. A stale one
     -- is lazily expired here — the desk fallback for the up-to-a-day cron
     -- lag — so it never blocks a same-day checkout.
+    -- FOUND is captured at once: the UPDATE/INSERT statements below reset it.
     select * into v_shelf_hold
     from public.holds
     where copy_id = v_copy.id
       and status = 'ready'
     for update;
 
+    v_shelf_found := found;
     v_shelf_expired := false;
-    if found and v_shelf_hold.expires_at <= now() then
+    if v_shelf_found and v_shelf_hold.expires_at <= now() then
       update public.holds
       set status = 'expired'
       where id = v_shelf_hold.id;
@@ -558,7 +561,7 @@ begin
     end if;
 
     if v_copy.status = 'on_hold_shelf' and not v_shelf_expired then
-      if not found or v_shelf_hold.member_id <> p_member_id then
+      if not v_shelf_found or v_shelf_hold.member_id <> p_member_id then
         raise exception 'copy_on_hold_shelf' using errcode = 'P0001';
       end if;
     end if;
