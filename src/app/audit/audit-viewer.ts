@@ -147,7 +147,7 @@ import {
             </button>
           }
         </ui-empty-state>
-      } @else {
+      } @else if (store.total() > 0) {
         <div class="overflow-x-auto">
           <ui-table
             [caption]="'audit.tableCaption' | transloco"
