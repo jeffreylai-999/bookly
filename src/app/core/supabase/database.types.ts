@@ -188,6 +188,64 @@ export type Database = {
           },
         ]
       }
+      holds: {
+        Row: {
+          copy_id: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          member_id: string
+          queue_position: number
+          ready_at: string | null
+          status: Database["public"]["Enums"]["hold_status"]
+          title_id: string
+        }
+        Insert: {
+          copy_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          member_id: string
+          queue_position: number
+          ready_at?: string | null
+          status?: Database["public"]["Enums"]["hold_status"]
+          title_id: string
+        }
+        Update: {
+          copy_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          member_id?: string
+          queue_position?: number
+          ready_at?: string | null
+          status?: Database["public"]["Enums"]["hold_status"]
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "holds_copy_id_fkey"
+            columns: ["copy_id"]
+            isOneToOne: false
+            referencedRelation: "copies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "holds_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "holds_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loans: {
         Row: {
           checked_out_at: string
@@ -329,6 +387,36 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          detail: Json
+          entity_id: string | null
+          entity_type: string
+          id: string
+          read_at: string | null
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          read_at?: string | null
+          type: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          read_at?: string | null
+          type?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -406,6 +494,26 @@ export type Database = {
         }
         Returns: Json
       }
+      cancel_hold: {
+        Args: { p_hold_id: string }
+        Returns: {
+          copy_id: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          member_id: string
+          queue_position: number
+          ready_at: string | null
+          status: Database["public"]["Enums"]["hold_status"]
+          title_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "holds"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       checkout: {
         Args: { p_copy_barcodes: string[]; p_member_id: string }
         Returns: {
@@ -427,6 +535,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      is_admin: { Args: never; Returns: boolean }
       log_audit: {
         Args: {
           p_action: string
@@ -435,6 +544,46 @@ export type Database = {
           p_entity_type: string
         }
         Returns: string
+      }
+      mark_ready: {
+        Args: { p_copy_barcode: string; p_title_id: string }
+        Returns: {
+          copy_id: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          member_id: string
+          queue_position: number
+          ready_at: string | null
+          status: Database["public"]["Enums"]["hold_status"]
+          title_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "holds"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      place_hold: {
+        Args: { p_member_id: string; p_title_id: string }
+        Returns: {
+          copy_id: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          member_id: string
+          queue_position: number
+          ready_at: string | null
+          status: Database["public"]["Enums"]["hold_status"]
+          title_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "holds"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_copy_status: {
         Args: {
@@ -490,6 +639,7 @@ export type Database = {
         | "retired"
       fine_reason: "overdue" | "damaged" | "lost"
       fine_status: "outstanding" | "paid" | "partial" | "waived"
+      hold_status: "waiting" | "ready" | "fulfilled" | "cancelled" | "expired"
       loan_status: "active" | "returned"
       member_status: "active" | "suspended" | "blocked"
       profile_role: "staff" | "admin"
@@ -633,6 +783,7 @@ export const Constants = {
       ],
       fine_reason: ["overdue", "damaged", "lost"],
       fine_status: ["outstanding", "paid", "partial", "waived"],
+      hold_status: ["waiting", "ready", "fulfilled", "cancelled", "expired"],
       loan_status: ["active", "returned"],
       member_status: ["active", "suspended", "blocked"],
       profile_role: ["staff", "admin"],
