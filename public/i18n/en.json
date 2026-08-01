@@ -334,7 +334,12 @@
       "emptyHeadline": "No copies queued",
       "emptyMessage": "Scan an available copy to add it to this check-out.",
       "tableCaption": "Queued copies for check-out",
-      "remove": "Remove"
+      "remove": "Remove",
+      "columns": {
+        "title": "Title",
+        "barcode": "Barcode",
+        "actions": "Actions"
+      }
     },
     "confirm": {
       "summary": "{{count}} copies ready to check out",
