@@ -42,6 +42,25 @@ begin
     raise exception 'copies_required' using errcode = 'P0001';
   end if;
 
+  -- Checkout mutates the hold queue, so it must join the same title-row lock
+  -- discipline as place_hold/cancel_hold/mark_ready. Taking it here, ahead of
+  -- the member and copy rows, puts every queue mutation on one
+  -- title -> member -> copy -> hold order. Distinct titles are locked in id
+  -- order so two concurrent multi-title batches cannot deadlock on each other.
+  perform 1
+  from public.titles t
+  where t.id in (
+    select c.title_id
+    from public.copies c
+    where c.barcode in (
+      select trim(b)
+      from unnest(p_copy_barcodes) as b
+      where trim(b) <> ''
+    )
+  )
+  order by t.id
+  for update;
+
   select * into v_member
   from public.members
   where id = p_member_id

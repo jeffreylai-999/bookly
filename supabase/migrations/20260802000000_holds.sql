@@ -225,6 +225,12 @@ begin
     raise exception 'hold_not_found' using errcode = 'P0001';
   end if;
 
+  -- Re-checked under the row lock: checkout may have fulfilled this hold while
+  -- we waited on it, and cancelling then would overwrite a real loan's history.
+  if v_hold.status not in ('waiting', 'ready') then
+    raise exception 'hold_not_active' using errcode = 'P0001';
+  end if;
+
   if v_hold.status = 'ready' and v_hold.copy_id is not null then
     update public.copies
     set status = 'available'

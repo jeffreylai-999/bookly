@@ -401,6 +401,33 @@ begin
   end if;
 end $$;
 
+-- Cancelling a hold that already reached a terminal status must not overwrite
+-- it. Reachable directly, and when checkout fulfils a hold while cancel_hold is
+-- still blocked on that hold's row lock.
+do $$
+declare
+  v_cancelled public.holds;
+begin
+  select * into v_cancelled
+  from public.holds
+  where member_id = 'd0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'
+    and title_id = 'd0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1'
+    and status = 'cancelled';
+
+  if not found then
+    raise exception 'expected a cancelled hold fixture';
+  end if;
+
+  begin
+    perform public.cancel_hold(v_cancelled.id);
+    raise exception 'expected hold_not_active from cancel_hold';
+  exception when others then
+    if sqlerrm not like 'hold_not_active%' then
+      raise;
+    end if;
+  end;
+end $$;
+
 do $$
 begin
   begin
