@@ -232,7 +232,7 @@ do $$
 declare
   v_first public.holds;
   v_second public.holds;
-  v_cancelled public.holds;
+  v_third public.holds;
 begin
   v_first := public.place_hold(
     'd0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
@@ -242,22 +242,65 @@ begin
     'd0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2',
     'd0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1'
   );
+  v_third := public.place_hold(
+    'd0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3',
+    'd0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1'
+  );
 
-  if v_first.queue_position <> 1 or v_second.queue_position <> 2 then
-    raise exception 'expected tail positions 1,2; got %,%',
-      v_first.queue_position, v_second.queue_position;
+  if v_first.queue_position <> 1
+     or v_second.queue_position <> 2
+     or v_third.queue_position <> 3 then
+    raise exception 'expected tail positions 1,2,3; got %,%,%',
+      v_first.queue_position, v_second.queue_position, v_third.queue_position;
   end if;
+end $$;
+
+-- Move position 2's tuple after position 3 on disk. An UPDATE whose execution
+-- order follows physical rows can then attempt 3 -> 2 before 2 -> 1.
+reset role;
+update public.holds
+set created_at = created_at
+where member_id = 'd0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2'
+  and title_id = 'd0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1';
+
+set local role authenticated;
+set local request.jwt.claim.sub = 'd1111111-1111-1111-1111-111111111111';
+set local request.jwt.claim.role = 'authenticated';
+set local request.jwt.claims = '{"sub":"d1111111-1111-1111-1111-111111111111","role":"authenticated"}';
+
+do $$
+declare
+  v_first public.holds;
+  v_second public.holds;
+  v_third public.holds;
+  v_cancelled public.holds;
+  v_positions integer[];
+begin
+  select * into v_first
+  from public.holds
+  where member_id = 'd0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'
+    and title_id = 'd0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1';
+  select * into v_second
+  from public.holds
+  where member_id = 'd0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2'
+    and title_id = 'd0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1';
+  select * into v_third
+  from public.holds
+  where member_id = 'd0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3'
+    and title_id = 'd0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1';
 
   v_cancelled := public.cancel_hold(v_first.id);
   if v_cancelled.status <> 'cancelled' then
     raise exception 'cancel_hold should return cancelled row';
   end if;
-  if (
-    select queue_position
+  select array_agg(queue_position order by queue_position)
+  into v_positions
     from public.holds
-    where id = v_second.id
-  ) <> 1 then
-    raise exception 'cancelling position 1 should renumber remaining hold to 1';
+    where id in (v_second.id, v_third.id);
+
+  if v_positions <> array[1, 2] then
+    raise exception 'cancelling first of three holds should renumber to {1,2}, got %',
+      v_positions;
   end if;
 end $$;
 
@@ -272,12 +315,15 @@ declare
   v_third public.holds;
   v_ready public.holds;
 begin
-  v_third := public.place_hold(
-    'd0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3',
-    'd0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1'
-  );
+  select * into v_third
+  from public.holds
+  where member_id = 'd0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3'
+    and title_id = 'd0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1'
+    and status = 'waiting';
+
   if v_third.queue_position <> 2 then
-    raise exception 'new hold should join tail at 2, got %', v_third.queue_position;
+    raise exception 'third hold should remain at renumbered position 2, got %',
+      v_third.queue_position;
   end if;
 
   v_ready := public.mark_ready(

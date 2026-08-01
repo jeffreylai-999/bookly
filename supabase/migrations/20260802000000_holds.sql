@@ -185,6 +185,7 @@ declare
   v_role public.profile_role;
   v_title public.titles;
   v_hold public.holds;
+  v_queue_offset integer;
 begin
   if v_actor is null then
     raise exception 'not_authenticated' using errcode = 'P0001';
@@ -234,6 +235,19 @@ begin
   set status = 'cancelled'
   where id = p_hold_id
   returning * into v_hold;
+
+  -- Move every active position above the current range first. Final positions
+  -- are then unoccupied regardless of UPDATE execution order.
+  select coalesce(max(queue_position), 0)
+  into v_queue_offset
+  from public.holds
+  where title_id = v_hold.title_id
+    and status in ('waiting', 'ready');
+
+  update public.holds
+  set queue_position = queue_position + v_queue_offset
+  where title_id = v_hold.title_id
+    and status in ('waiting', 'ready');
 
   with active_positions as (
     select
