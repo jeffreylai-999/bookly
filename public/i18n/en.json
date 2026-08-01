@@ -309,5 +309,62 @@
         "void": "Payment voided"
       }
     }
+  },
+  "circulation": {
+    "title": "Check out",
+    "subtitle": "Identify a member, scan available copies, then confirm the loan.",
+    "member": {
+      "heading": "Member",
+      "hint": "Scan an MBR- card or search by name.",
+      "scanPlaceholder": "Scan member card",
+      "scanLabel": "Scan member card barcode",
+      "searchLabel": "Search members",
+      "searchPlaceholder": "Type a name or card barcode",
+      "suggestions": "Matching members",
+      "typeRules": "{{type}} · {{days}}-day loans · cap {{cap}}",
+      "clear": "Clear member"
+    },
+    "copies": {
+      "heading": "Copies",
+      "hint": "Scan BK- barcodes for available copies.",
+      "scanPlaceholder": "Scan copy barcode",
+      "scanLabel": "Scan copy barcode",
+      "needMemberHeadline": "Select a member first",
+      "needMemberMessage": "Check-out needs a member before copies can be queued.",
+      "emptyHeadline": "No copies queued",
+      "emptyMessage": "Scan an available copy to add it to this check-out.",
+      "tableCaption": "Queued copies for check-out",
+      "remove": "Remove"
+    },
+    "confirm": {
+      "summary": "{{count}} copies ready to check out",
+      "action": "Check out",
+      "working": "Checking out…"
+    },
+    "toasts": {
+      "checkedOut": "Checked out · due {{due}}"
+    },
+    "errors": {
+      "notAuthenticated": "Sign in again to check out.",
+      "profileMissing": "Your staff profile could not be loaded.",
+      "memberNotFound": "No member matches that card barcode.",
+      "memberRequired": "Select a member before scanning copies.",
+      "memberSuspended": "This member is suspended and cannot check out.",
+      "memberBlocked": "This member is blocked and cannot check out.",
+      "memberFineBlocked": "Outstanding fines block check-out for this member.",
+      "memberBorrowCap": "This member is at their borrow limit.",
+      "copiesRequired": "Add at least one copy before confirming.",
+      "copyNotFound": "No copy matches that barcode.",
+      "copyOnLoan": "That copy is already on loan — check it in first.",
+      "copyOnHoldShelf": "That copy is on the hold shelf for another member.",
+      "copyLost": "That copy is marked lost and cannot be checked out.",
+      "copyDamaged": "That copy is marked damaged and cannot be checked out.",
+      "copyRetired": "That copy is retired and cannot be checked out.",
+      "duplicateBarcode": "That copy is already in this check-out.",
+      "unexpected": "Check-out failed. Try again in a moment."
+    }
+  },
+  "scan": {
+    "unknownBarcode": "Unrecognized barcode. Expected an MBR- card or BK- copy."
   }
 }

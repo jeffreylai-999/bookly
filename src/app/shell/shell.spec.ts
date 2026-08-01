@@ -22,6 +22,7 @@ import {
 
 import { AuthService } from '../core/auth';
 import { ThrowingMissingKeyHandler } from '../core/i18n';
+import { ScanService } from '../core/scan';
 import en from '../../../public/i18n/en.json';
 import { AppShell } from './shell';
 
@@ -75,6 +76,7 @@ describe('AppShell', () => {
         provideRouter([{ path: '', component: OutletStub }]),
         provideTranslocoMissingHandler(ThrowingMissingKeyHandler),
         { provide: AuthService, useClass: AuthStub },
+        { provide: ScanService, useValue: { start: () => undefined, stop: () => undefined } },
         icons,
       ],
     }).compileComponents();
@@ -119,6 +121,7 @@ describe('AppShell', () => {
             logout: async () => ({ error: null }),
           },
         },
+        { provide: ScanService, useValue: { start: () => undefined, stop: () => undefined } },
         icons,
       ],
     }).compileComponents();
