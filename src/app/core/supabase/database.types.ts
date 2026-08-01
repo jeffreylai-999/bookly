@@ -255,6 +255,13 @@ export type Database = {
             foreignKeyName: "holds_title_id_fkey"
             columns: ["title_id"]
             isOneToOne: false
+            referencedRelation: "overdue_loans"
+            referencedColumns: ["title_id"]
+          },
+          {
+            foreignKeyName: "holds_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
@@ -430,6 +437,64 @@ export type Database = {
           type?: string
         }
         Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          fine_id: string
+          id: string
+          method: string
+          recorded_by: string | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          fine_id: string
+          id?: string
+          method: string
+          recorded_by?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          fine_id?: string
+          id?: string
+          method?: string
+          recorded_by?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_fine_id_fkey"
+            columns: ["fine_id"]
+            isOneToOne: false
+            referencedRelation: "fines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_voided_by_fkey"
+            columns: ["voided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -640,6 +705,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      record_payment: {
+        Args: { p_amount: number; p_fine_id: string; p_method: string }
+        Returns: Json
+      }
       set_copy_status: {
         Args: {
           p_copy_id: string
@@ -679,6 +748,30 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "members"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      void_payment: {
+        Args: { p_payment_id: string; p_reason: string }
+        Returns: Json
+      }
+      waive_fine: {
+        Args: { p_fine_id: string; p_reason: string }
+        Returns: {
+          accrual_rule_snapshot: Json
+          amount: number
+          amount_paid: number
+          created_at: string
+          id: string
+          loan_id: string | null
+          member_id: string
+          reason: Database["public"]["Enums"]["fine_reason"]
+          status: Database["public"]["Enums"]["fine_status"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "fines"
           isOneToOne: true
           isSetofReturn: false
         }
