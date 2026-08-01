@@ -39,9 +39,13 @@ export type Database = {
           currency: string
           damaged_fee_default: number
           default_locale: string
+          default_report_range_days: number
           fine_block_threshold: number
           id: boolean
           lost_fee_default: number
+          notify_on_hold_ready: boolean
+          notify_on_overdue: boolean
+          notify_on_payment: boolean
           timezone: string
           updated_at: string
         }
@@ -49,9 +53,13 @@ export type Database = {
           currency?: string
           damaged_fee_default?: number
           default_locale?: string
+          default_report_range_days?: number
           fine_block_threshold?: number
           id?: boolean
           lost_fee_default?: number
+          notify_on_hold_ready?: boolean
+          notify_on_overdue?: boolean
+          notify_on_payment?: boolean
           timezone?: string
           updated_at?: string
         }
@@ -59,9 +67,13 @@ export type Database = {
           currency?: string
           damaged_fee_default?: number
           default_locale?: string
+          default_report_range_days?: number
           fine_block_threshold?: number
           id?: boolean
           lost_fee_default?: number
+          notify_on_hold_ready?: boolean
+          notify_on_overdue?: boolean
+          notify_on_payment?: boolean
           timezone?: string
           updated_at?: string
         }
@@ -250,6 +262,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "members"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "holds_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "overdue_loans"
+            referencedColumns: ["title_id"]
           },
           {
             foreignKeyName: "holds_title_id_fkey"
