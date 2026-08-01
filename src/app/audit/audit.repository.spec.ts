@@ -1,7 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 
 import { SUPABASE_CLIENT } from '../core/supabase';
-import { AuditRepository } from './audit.repository';
+import {
+  AuditRepository,
+  localDayEndExclusiveIso,
+  localDayStartIso,
+} from './audit.repository';
 
 function createQueryBuilder(result: {
   data: unknown;
@@ -54,8 +58,8 @@ describe('AuditRepository', () => {
     expect(builder.eq).toHaveBeenCalledWith('actor', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeee0002');
     expect(builder.eq).toHaveBeenCalledWith('action', 'member.status');
     expect(builder.eq).toHaveBeenCalledWith('entity_type', 'member');
-    expect(builder.gte).toHaveBeenCalledWith('created_at', '2026-07-01T00:00:00.000Z');
-    expect(builder.lt).toHaveBeenCalledWith('created_at', '2026-08-01T00:00:00.000Z');
+    expect(builder.gte).toHaveBeenCalledWith('created_at', localDayStartIso('2026-07-01'));
+    expect(builder.lt).toHaveBeenCalledWith('created_at', localDayEndExclusiveIso('2026-07-31'));
     expect(builder.order).toHaveBeenCalledWith('created_at', { ascending: false });
     expect(builder.range).toHaveBeenCalledWith(10, 19);
   });

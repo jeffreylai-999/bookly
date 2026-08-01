@@ -39,9 +39,6 @@ export class AuditStore {
   /** List-load failures only — never mixed with actor-roster errors. */
   readonly error = this.errorState.asReadonly();
   readonly actorsError = this.actorsErrorState.asReadonly();
-  readonly empty = computed(
-    () => !this.loadingState() && !this.errorState() && this.totalState() === 0,
-  );
   readonly hasActiveFilters = computed(
     () =>
       this.actorIdState() !== 'all' ||
@@ -49,6 +46,19 @@ export class AuditStore {
       this.entityTypeState() !== 'all' ||
       this.fromDateState().trim().length > 0 ||
       this.toDateState().trim().length > 0,
+  );
+  /** True when both ends are set and from is after to (YYYY-MM-DD lexicographic). */
+  readonly dateRangeInvalid = computed(() => {
+    const from = this.fromDateState().trim();
+    const to = this.toDateState().trim();
+    return from.length > 0 && to.length > 0 && from > to;
+  });
+  readonly empty = computed(
+    () =>
+      !this.loadingState() &&
+      !this.errorState() &&
+      !this.dateRangeInvalid() &&
+      this.totalState() === 0,
   );
 
   async init(): Promise<void> {
@@ -60,6 +70,12 @@ export class AuditStore {
     this.loadingState.set(true);
     this.errorState.set(null);
     try {
+      if (this.dateRangeInvalid()) {
+        this.rowsState.set([]);
+        this.totalState.set(0);
+        return;
+      }
+
       const page = this.pageState();
       const result = await this.repo.list({
         page,
