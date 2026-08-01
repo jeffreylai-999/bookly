@@ -25,6 +25,13 @@ const LOAN_LIST_SELECT =
 
 export type DeskSettings = Pick<Tables<'app_settings'>, 'currency' | 'damaged_fee_default'>;
 
+/**
+ * The member-panel money line: balance from materialized fines only (the same
+ * sum the checkout gate enforces), projected from the overdue_loans view —
+ * provisional, never blocking (spec §6).
+ */
+export type MemberMoney = { balance: number; projected: number };
+
 export type ListQuery = { page: number; pageSize: number };
 export type ListResult<T> = { rows: T[]; total: number; error: string | null };
 
@@ -186,6 +193,38 @@ export class CirculationRepository {
       .maybeSingle();
 
     return { row: data ?? null, error: error?.message ?? null };
+  }
+
+  async getMemberMoney(
+    memberId: string,
+  ): Promise<{ row: MemberMoney | null; error: string | null }> {
+    const fines = await this.supabase
+      .from('fines')
+      .select('amount, amount_paid')
+      .eq('member_id', memberId)
+      .in('status', ['outstanding', 'partial']);
+    if (fines.error) {
+      return { row: null, error: fines.error.message };
+    }
+
+    const overdue = await this.supabase
+      .from('overdue_loans')
+      .select('projected_fine')
+      .eq('member_id', memberId);
+    if (overdue.error) {
+      return { row: null, error: overdue.error.message };
+    }
+
+    const balance = (fines.data ?? []).reduce(
+      (sum, fine) => sum + (fine.amount - fine.amount_paid),
+      0,
+    );
+    const projected = (overdue.data ?? []).reduce(
+      (sum, loan) => sum + (loan.projected_fine ?? 0),
+      0,
+    );
+
+    return { row: { balance, projected }, error: null };
   }
 
   async getSettings(): Promise<{ row: DeskSettings | null; error: string | null }> {

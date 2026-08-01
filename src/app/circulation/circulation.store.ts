@@ -1,6 +1,6 @@
 import { Service, computed, inject, signal } from '@angular/core';
 
-import { CirculationRepository } from './circulation.repository';
+import { CirculationRepository, type MemberMoney } from './circulation.repository';
 import type {
   CheckoutCopy,
   CheckoutError,
@@ -37,11 +37,18 @@ export class CirculationStore {
   private readonly queuedState = signal<CheckoutCopy[]>([]);
   private readonly busyState = signal(false);
   private readonly lastDueAtState = signal<string | null>(null);
+  private readonly moneyState = signal<MemberMoney | null>(null);
+  private readonly currencyState = signal('USD');
+  /** Bumped per member switch so a stale money response can't land. */
+  private moneyGeneration = 0;
+  private settingsLoaded = false;
 
   readonly member = this.memberState.asReadonly();
   readonly queuedCopies = this.queuedState.asReadonly();
   readonly busy = this.busyState.asReadonly();
   readonly lastDueAt = this.lastDueAtState.asReadonly();
+  readonly money = this.moneyState.asReadonly();
+  readonly currency = this.currencyState.asReadonly();
 
   readonly canConfirm = computed(
     () =>
@@ -53,6 +60,7 @@ export class CirculationStore {
   setMember(member: CheckoutMember | null): void {
     this.memberState.set(member);
     this.lastDueAtState.set(null);
+    this.loadMoney(member?.id ?? null);
   }
 
   async selectMemberByCard(
@@ -66,6 +74,7 @@ export class CirculationStore {
       this.memberState.set(row);
       this.queuedState.set([]);
       this.lastDueAtState.set(null);
+      this.loadMoney(row.id);
       return { error: null };
     } finally {
       this.busyState.set(false);
@@ -129,5 +138,32 @@ export class CirculationStore {
     this.queuedState.set([]);
     this.lastDueAtState.set(null);
     this.busyState.set(false);
+    this.loadMoney(null);
+  }
+
+  /**
+   * Balance (materialized fines — the checkout gate's number) and projected
+   * (provisional, from overdue_loans) for the member panel. Fire-and-forget:
+   * the panel simply shows nothing until it lands.
+   */
+  private loadMoney(memberId: string | null): void {
+    const generation = ++this.moneyGeneration;
+    this.moneyState.set(null);
+    if (!memberId) return;
+    void this.ensureSettings();
+    void this.repo.getMemberMoney(memberId).then(({ row }) => {
+      if (row && generation === this.moneyGeneration) {
+        this.moneyState.set(row);
+      }
+    });
+  }
+
+  private async ensureSettings(): Promise<void> {
+    if (this.settingsLoaded) return;
+    this.settingsLoaded = true;
+    const { row } = await this.repo.getSettings();
+    if (row) {
+      this.currencyState.set(row.currency);
+    }
   }
 }

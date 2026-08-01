@@ -54,6 +54,7 @@ describe('Circulation', () => {
     const busySig = signal(false);
     const dueSig = signal<string | null>(null);
     const canConfirmSig = signal(false);
+    const moneySig = signal<{ balance: number; projected: number } | null>(null);
 
     const store = {
       member: memberSig.asReadonly(),
@@ -61,6 +62,8 @@ describe('Circulation', () => {
       busy: busySig.asReadonly(),
       lastDueAt: dueSig.asReadonly(),
       canConfirm: canConfirmSig.asReadonly(),
+      money: moneySig.asReadonly(),
+      currency: signal('USD').asReadonly(),
       setMember: vi.fn((m: CheckoutMember | null) => memberSig.set(m)),
       selectMemberByCard: vi.fn().mockResolvedValue({ error: null }),
       queueCopyByBarcode: vi.fn().mockResolvedValue({ error: null }),
@@ -76,6 +79,7 @@ describe('Circulation', () => {
       _queuedSig: queuedSig,
       _canConfirmSig: canConfirmSig,
       _dueSig: dueSig,
+      _moneySig: moneySig,
     };
 
     const toast = { show: vi.fn(), error: vi.fn() };
@@ -160,6 +164,17 @@ describe('Circulation', () => {
     expect(toast.error).toHaveBeenCalledWith(
       'This member is suspended and cannot check out.',
     );
+  });
+
+  it('shows balance and projected separately in the member panel', async () => {
+    const { fixture, store } = await setup();
+    store._memberSig.set(member);
+    store._moneySig.set({ balance: 12, projected: 0.75 });
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Balance $12.00');
+    expect(text).toContain('projected +$0.75');
   });
 
   it('has no serious accessibility violations on the empty desk', async () => {
