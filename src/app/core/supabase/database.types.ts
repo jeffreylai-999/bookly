@@ -255,6 +255,13 @@ export type Database = {
             foreignKeyName: "holds_title_id_fkey"
             columns: ["title_id"]
             isOneToOne: false
+            referencedRelation: "overdue_loans"
+            referencedColumns: ["title_id"]
+          },
+          {
+            foreignKeyName: "holds_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
@@ -566,6 +573,7 @@ export type Database = {
           p_condition: string
           p_copy_barcode: string
           p_damaged_amount?: number
+          p_fill_hold?: boolean
         }
         Returns: Json
       }
@@ -639,6 +647,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      promote_waiting_hold: {
+        Args: { p_copy_id: string; p_title_id: string }
+        Returns: string
       }
       set_copy_status: {
         Args: {
