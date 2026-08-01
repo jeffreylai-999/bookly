@@ -97,6 +97,25 @@ describe('AuditStore', () => {
     expect(store.empty()).toBe(false);
   });
 
+  it('skips the list query when the date range is inverted', async () => {
+    const list = vi.fn().mockResolvedValue({ rows: [sampleRow], total: 1, error: null });
+    const listActors = vi.fn().mockResolvedValue({ rows: [], error: null });
+
+    await TestBed.configureTestingModule({
+      providers: [AuditStore, { provide: AuditRepository, useValue: { list, listActors } }],
+    }).compileComponents();
+
+    const store = TestBed.inject(AuditStore);
+    await store.setFromDate('2026-07-31');
+    list.mockClear();
+    await store.setToDate('2026-07-01');
+
+    expect(store.dateRangeInvalid()).toBe(true);
+    expect(list).not.toHaveBeenCalled();
+    expect(store.rows()).toEqual([]);
+    expect(store.total()).toBe(0);
+  });
+
   it('clears all filters together', async () => {
     const list = vi.fn().mockResolvedValue({ rows: [], total: 0, error: null });
     const listActors = vi.fn().mockResolvedValue({ rows: [], error: null });
@@ -108,12 +127,16 @@ describe('AuditStore', () => {
     const store = TestBed.inject(AuditStore);
     await store.setActorId('aaaaaaaa-bbbb-cccc-dddd-eeeeeeee0002');
     await store.setAction('member.create');
+    await store.setEntityType('member');
     await store.setFromDate('2026-07-01');
+    await store.setToDate('2026-07-31');
     await store.clearFilters();
 
     expect(store.actorId()).toBe('all');
     expect(store.action()).toBe('all');
+    expect(store.entityType()).toBe('all');
     expect(store.fromDate()).toBe('');
+    expect(store.toDate()).toBe('');
     expect(store.hasActiveFilters()).toBe(false);
   });
 });

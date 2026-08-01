@@ -105,6 +105,11 @@ import {
         }
       </div>
 
+      @if (store.dateRangeInvalid()) {
+        <p role="alert" class="text-sm font-semibold text-danger">
+          {{ 'audit.errors.dateRangeInvalid' | transloco }}
+        </p>
+      }
       @if (store.error()) {
         <p role="alert" class="text-sm font-semibold text-danger">
           {{ 'audit.errors.loadFailed' | transloco }}

@@ -34,10 +34,11 @@ export class AuditRepository {
       builder = builder.eq('entity_type', query.entityType);
     }
     if (query.fromDate.trim()) {
-      builder = builder.gte('created_at', `${query.fromDate.trim()}T00:00:00.000Z`);
+      // Local calendar day — matches <input type="date"> and DatePipe display.
+      builder = builder.gte('created_at', localDayStartIso(query.fromDate.trim()));
     }
     if (query.toDate.trim()) {
-      builder = builder.lt('created_at', exclusiveEndInstant(query.toDate.trim()));
+      builder = builder.lt('created_at', localDayEndExclusiveIso(query.toDate.trim()));
     }
 
     const { data, error, count } = await builder;
@@ -57,12 +58,14 @@ export class AuditRepository {
   }
 }
 
-/** Inclusive `YYYY-MM-DD` → exclusive UTC midnight of the following calendar day. */
-function exclusiveEndInstant(toDate: string): string {
-  const [year, month, day] = toDate.split('-').map(Number);
-  const next = new Date(Date.UTC(year, month - 1, day + 1));
-  const yyyy = next.getUTCFullYear();
-  const mm = String(next.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(next.getUTCDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}T00:00:00.000Z`;
+/** Inclusive local `YYYY-MM-DD` → ISO instant at local midnight. */
+export function localDayStartIso(ymd: string): string {
+  const [year, month, day] = ymd.split('-').map(Number);
+  return new Date(year, month - 1, day, 0, 0, 0, 0).toISOString();
+}
+
+/** Inclusive local `YYYY-MM-DD` → ISO instant at local midnight of the next day. */
+export function localDayEndExclusiveIso(ymd: string): string {
+  const [year, month, day] = ymd.split('-').map(Number);
+  return new Date(year, month - 1, day + 1, 0, 0, 0, 0).toISOString();
 }
