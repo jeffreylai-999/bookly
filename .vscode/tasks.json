@@ -1,5 +1,7 @@
 {
   // For more information, visit: https://go.microsoft.com/fwlink/?LinkId=733558
+  // Inline TypeScript problem pattern (instead of "$tsc") so tasks work in
+  // environments without the VS Code TypeScript extension, such as Cursor Cloud.
   "version": "2.0.0",
   "tasks": [
     {
@@ -9,7 +11,15 @@
       "isBackground": true,
       "problemMatcher": {
         "owner": "typescript",
-        "pattern": "$tsc",
+        "pattern": {
+          "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+TS(\\d+)\\s*:\\s*(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "code": 5,
+          "message": 6
+        },
         "background": {
           "activeOnStart": true,
           "beginsPattern": {
@@ -28,7 +38,15 @@
       "isBackground": true,
       "problemMatcher": {
         "owner": "typescript",
-        "pattern": "$tsc",
+        "pattern": {
+          "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+TS(\\d+)\\s*:\\s*(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "code": 5,
+          "message": 6
+        },
         "background": {
           "activeOnStart": true,
           "beginsPattern": {
