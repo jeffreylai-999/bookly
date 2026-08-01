@@ -533,6 +533,79 @@
       "summary": "Showing {{from}}–{{to}} of {{total}}"
     }
   },
+  "holds": {
+    "title": "Holds",
+    "subtitle": "{{count}} holds",
+    "statusFilter": "Filter by status",
+    "filter": {
+      "all": "All statuses"
+    },
+    "status": {
+      "waiting": "Waiting",
+      "ready": "Ready",
+      "fulfilled": "Fulfilled",
+      "cancelled": "Cancelled",
+      "expired": "Expired"
+    },
+    "tableCaption": "Hold queue",
+    "columns": {
+      "member": "Member",
+      "title": "Title",
+      "position": "Queue",
+      "copy": "Copy",
+      "expires": "Expires",
+      "age": "Age",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "ageDays": "{{days}}d",
+    "expiresTooltip": "Shelf pickup deadline",
+    "expiredTooltip": "Past its shelf expiry — a checkout will expire it",
+    "actions": {
+      "markReady": "Mark ready",
+      "cancel": "Cancel",
+      "clearFilters": "Clear filters"
+    },
+    "markReadyDialog": {
+      "heading": "Mark ready",
+      "subtitle": "Pull an available copy of “{{title}}” for {{name}}, the head of the queue.",
+      "hint": "The queue head is always served — the copy you scan goes to them.",
+      "scanPlaceholder": "Scan or type the copy barcode",
+      "scanLabel": "Copy barcode",
+      "confirm": "Mark ready",
+      "working": "Marking ready…",
+      "cancel": "Cancel",
+      "close": "Close dialog"
+    },
+    "empty": {
+      "headline": "No holds yet",
+      "message": "Holds placed at the desk queue here.",
+      "filteredHeadline": "No holds match",
+      "filteredMessage": "Try a different status filter."
+    },
+    "toasts": {
+      "markedReady": "Hold marked ready for {{name}}.",
+      "cancelled": "Hold cancelled."
+    },
+    "errors": {
+      "loadFailed": "Couldn't load holds. Try again.",
+      "notAuthenticated": "Sign in again to manage holds.",
+      "profileMissing": "Your staff profile could not be loaded.",
+      "titleNotFound": "That title could not be found.",
+      "copyNotFound": "No copy of this title matches that barcode.",
+      "copyNotAvailable": "That copy is not available to pull.",
+      "noWaitingHolds": "No waiting holds remain for this title.",
+      "holdNotFound": "That hold could not be found.",
+      "holdNotActive": "That hold is no longer active.",
+      "unexpected": "Something went wrong. Try again."
+    },
+    "pagination": {
+      "prev": "Previous page",
+      "next": "Next page",
+      "nav": "Holds pagination",
+      "summary": "Showing {{from}}–{{to}} of {{total}}"
+    }
+  },
   "scan": {
     "unknownBarcode": "Unrecognized barcode. Expected an MBR- card or BK- copy."
   }
