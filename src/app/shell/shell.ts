@@ -1,10 +1,11 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { filter, map, startWith } from 'rxjs';
 
 import { AuthService } from '../core/auth';
+import { ScanService } from '../core/scan';
 import { ToastService, UiLayout, UiSidebarNavItem, UiTopbar } from '../ui';
 
 interface NavItem {
@@ -64,11 +65,20 @@ const NAV_ITEMS: NavItem[] = [
     </ui-layout>
   `,
 })
-export class AppShell {
+export class AppShell implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly transloco = inject(TranslocoService);
   private readonly toast = inject(ToastService);
+  private readonly scan = inject(ScanService);
+
+  ngOnInit(): void {
+    this.scan.start();
+  }
+
+  ngOnDestroy(): void {
+    this.scan.stop();
+  }
 
   private readonly currentUrl = toSignal(
     this.router.events.pipe(

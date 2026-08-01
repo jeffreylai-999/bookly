@@ -23,7 +23,10 @@ export const routes: Routes = [
         path: '',
         loadComponent: () => import('./overview/overview').then((m) => m.Overview),
       },
-      { path: 'circulation', component: ComingSoon, data: { titleKey: 'nav.circulation' } },
+      {
+        path: 'circulation',
+        loadComponent: () => import('./circulation/circulation').then((m) => m.Circulation),
+      },
       { path: 'catalog', loadComponent: () => import('./catalog/catalog').then((m) => m.Catalog) },
       {
         path: 'members',
