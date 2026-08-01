@@ -365,6 +365,74 @@ describe('CirculationRepository', () => {
     expect(result).toEqual({ ok: false, error: 'loan_not_found' });
   });
 
+  it('renews a loan via the renew_loan RPC and returns the updated row', async () => {
+    const loan = {
+      id: 'l1',
+      copy_id: 'c1',
+      member_id: 'm1',
+      checked_out_by: 'p1',
+      checked_out_at: '2026-07-01T00:00:00Z',
+      due_at: '2026-08-22T00:00:00Z',
+      returned_at: null,
+      renew_count: 1,
+      status: 'active',
+      created_at: '2026-07-01T00:00:00Z',
+    };
+    const rpcCalls: unknown[] = [];
+    const client = {
+      from: () => createQueryBuilder(() => ({ data: null, error: null })),
+      rpc: async (fn: string, args: unknown) => {
+        rpcCalls.push({ fn, args });
+        return { data: loan, error: null };
+      },
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.renew('l1');
+
+    expect(rpcCalls).toEqual([{ fn: 'renew_loan', args: { p_loan_id: 'l1' } }]);
+    expect(result).toEqual({ ok: true, loan });
+  });
+
+  it('maps renew RPC gate errors to typed codes', async () => {
+    const client = {
+      from: () => createQueryBuilder(() => ({ data: null, error: null })),
+      rpc: async () => ({ data: null, error: { message: 'loan_overdue' } }),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.renew('l1');
+
+    expect(result).toEqual({ ok: false, error: 'loan_overdue' });
+  });
+
+  it('maps renew errors carrying the code in a longer message', async () => {
+    const client = {
+      from: () => createQueryBuilder(() => ({ data: null, error: null })),
+      rpc: async () => ({
+        data: null,
+        error: { message: 'renewal_limit_reached: raise exception' },
+      }),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.renew('l1');
+
+    expect(result).toEqual({ ok: false, error: 'renewal_limit_reached' });
+  });
+
   it('lists active and returned loans with copy and member flattened', async () => {
     const orderCalls: [string, { ascending: boolean }][] = [];
     const row = {

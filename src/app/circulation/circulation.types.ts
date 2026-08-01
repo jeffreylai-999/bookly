@@ -183,6 +183,56 @@ export type CheckinRpcPayload = {
 };
 
 // ---------------------------------------------------------------------------
+// Renew
+// ---------------------------------------------------------------------------
+
+export type RenewError =
+  | 'not_authenticated'
+  | 'profile_missing'
+  | 'loan_not_found'
+  | 'renewal_limit_reached'
+  | 'title_has_waiting_holds'
+  | 'member_suspended'
+  | 'member_blocked'
+  | 'member_fine_blocked'
+  | 'loan_overdue'
+  | 'unexpected';
+
+export const RENEW_ERROR_KEYS: Record<RenewError, string> = {
+  not_authenticated: 'circulation.renew.errors.notAuthenticated',
+  profile_missing: 'circulation.renew.errors.profileMissing',
+  loan_not_found: 'circulation.renew.errors.loanNotFound',
+  renewal_limit_reached: 'circulation.renew.errors.renewalLimitReached',
+  title_has_waiting_holds: 'circulation.renew.errors.titleHasWaitingHolds',
+  member_suspended: 'circulation.renew.errors.memberSuspended',
+  member_blocked: 'circulation.renew.errors.memberBlocked',
+  member_fine_blocked: 'circulation.renew.errors.memberFineBlocked',
+  loan_overdue: 'circulation.renew.errors.loanOverdue',
+  unexpected: 'circulation.renew.errors.unexpected',
+};
+
+export function mapRenewError(message: string | undefined): RenewError {
+  if (!message) return 'unexpected';
+  const codes: RenewError[] = [
+    'not_authenticated',
+    'profile_missing',
+    'loan_not_found',
+    'renewal_limit_reached',
+    'title_has_waiting_holds',
+    'member_suspended',
+    'member_blocked',
+    'member_fine_blocked',
+    'loan_overdue',
+  ];
+  for (const code of codes) {
+    if (message.includes(code)) return code;
+  }
+  return 'unexpected';
+}
+
+export type RenewResult = { ok: true; loan: Loan } | { ok: false; error: RenewError };
+
+// ---------------------------------------------------------------------------
 // Monitoring tabs (active / overdue / returned)
 // ---------------------------------------------------------------------------
 
