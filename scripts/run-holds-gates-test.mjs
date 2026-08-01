@@ -5,47 +5,26 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { resolveContainer } from './supabase-project.mjs';
 
-const CONTAINER_PREFIX = 'supabase_db_';
-const STAFF_ID = 'd2111111-1111-1111-1111-111111111111';
-const MEMBER_ONE_ID = 'd2aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1';
-const MEMBER_TWO_ID = 'd2aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2';
-const TITLE_ID = 'd2bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+// Unlike the transaction-scoped gate files, these fixtures are COMMITTED: the
+// concurrency probe needs two independent sessions to see each other's rows.
+// They are therefore namespaced per run, so two checkouts sharing one database
+// cannot collide on a primary key or delete each other's rows during cleanup.
+// A hard crash leaves this run's rows behind; `pnpm supabase:reset` clears them.
+const RUN_ID = (process.env.BOOKLY_RUN_ID ?? randomUUID()).replace(/[^a-z0-9]/gi, '').slice(0, 8);
+const STAFF_ID = randomUUID();
+const MEMBER_ONE_ID = randomUUID();
+const MEMBER_TWO_ID = randomUUID();
+const TITLE_ID = randomUUID();
+const BARRIER = `public._holds_conc_barrier_${RUN_ID}`;
+const STAFF_EMAIL = `holds-concurrency-${RUN_ID}@bookly.local`;
+const MEMBER_ONE_BARCODE = `MBR-HOLD-CONC-${RUN_ID}-1`;
+const MEMBER_TWO_BARCODE = `MBR-HOLD-CONC-${RUN_ID}-2`;
 
 function fail(message) {
   throw new Error(message);
-}
-
-function resolveContainer() {
-  const override = process.env.SUPABASE_DB_CONTAINER;
-  if (override) return override;
-
-  const found = spawnSync(
-    'docker',
-    ['ps', '--filter', `name=${CONTAINER_PREFIX}`, '--format', '{{.Names}}'],
-    { encoding: 'utf8' },
-  );
-  if (found.error) {
-    fail(`Could not run docker (is Docker installed and running?):\n${found.error.message}`);
-  }
-  if (found.status !== 0) {
-    fail(`docker ps failed (exit ${found.status}):\n${found.stderr ?? ''}`);
-  }
-
-  const names = (found.stdout ?? '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-  if (names.length === 0) {
-    fail(`No running ${CONTAINER_PREFIX}* container. Run \`pnpm supabase:start\`.`);
-  }
-  if (names.length > 1) {
-    fail(
-      `Several Supabase DB containers are running:\n  ${names.join('\n  ')}\n` +
-        'Pick one with SUPABASE_DB_CONTAINER=<name>.',
-    );
-  }
-  return names[0];
 }
 
 function psql(container, sql, { allowFailure = false } = {}) {
@@ -68,14 +47,14 @@ set request.jwt.claim.sub = '${STAFF_ID}';
 set request.jwt.claim.role = 'authenticated';
 set request.jwt.claims = '{"sub":"${STAFF_ID}","role":"authenticated"}';
 
-update public._holds_conc_barrier set ready_count = ready_count + 1 where id = 1;
+update ${BARRIER} set ready_count = ready_count + 1 where id = 1;
 
 do $$
 declare
   v_go boolean := false;
 begin
   while not v_go loop
-    select go into v_go from public._holds_conc_barrier where id = 1;
+    select go into v_go from ${BARRIER} where id = 1;
     if not coalesce(v_go, false) then
       perform pg_sleep(0.02);
     end if;
@@ -123,7 +102,7 @@ function cleanupConcurrencyFixture(container, { allowFailure = false } = {}) {
   return psql(
     container,
     `
-drop table if exists public._holds_conc_barrier;
+drop table if exists ${BARRIER};
 do $$
 begin
   if to_regclass('public.holds') is not null then
@@ -152,13 +131,13 @@ try {
     container,
     `
 begin;
-create table public._holds_conc_barrier (
+create table ${BARRIER} (
   id integer primary key,
   ready_count integer not null default 0,
   go boolean not null default false
 );
-grant select, update on public._holds_conc_barrier to authenticated;
-insert into public._holds_conc_barrier (id) values (1);
+grant select, update on ${BARRIER} to authenticated;
+insert into ${BARRIER} (id) values (1);
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -167,13 +146,13 @@ insert into auth.users (
 values (
   '00000000-0000-0000-0000-000000000000',
   '${STAFF_ID}',
-  'authenticated', 'authenticated', 'holds-concurrency@bookly.local',
+  'authenticated', 'authenticated', '${STAFF_EMAIL}',
   crypt('test-password', gen_salt('bf')), now(),
   '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now()
 );
 
 insert into public.profiles (id, full_name, email, role)
-values ('${STAFF_ID}', 'Holds Concurrency Staff', 'holds-concurrency@bookly.local', 'staff');
+values ('${STAFF_ID}', 'Holds Concurrency Staff', '${STAFF_EMAIL}', 'staff');
 
 insert into public.members (id, name, member_type_id, status, card_barcode)
 values
@@ -182,14 +161,14 @@ values
     'Concurrency Member One',
     '11111111-1111-1111-1111-111111111101',
     'active',
-    'MBR-HOLD-CONC-1'
+    '${MEMBER_ONE_BARCODE}'
   ),
   (
     '${MEMBER_TWO_ID}',
     'Concurrency Member Two',
     '11111111-1111-1111-1111-111111111101',
     'active',
-    'MBR-HOLD-CONC-2'
+    '${MEMBER_TWO_BARCODE}'
   );
 
 insert into public.titles (id, title, author, genre)
@@ -204,7 +183,7 @@ commit;
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const probe = psql(
       container,
-      'select ready_count from public._holds_conc_barrier where id = 1;',
+      `select ready_count from ${BARRIER} where id = 1;`,
     );
     const readyCount = Number((probe.stdout.match(/^\s*(\d+)\s*$/m) ?? [])[1] ?? 0);
     if (readyCount === 2) {
@@ -217,7 +196,7 @@ commit;
     fail('Concurrent hold workers did not reach the barrier.');
   }
 
-  psql(container, 'update public._holds_conc_barrier set go = true where id = 1;');
+  psql(container, `update ${BARRIER} set go = true where id = 1;`);
 
   const results = await Promise.all(workers);
   for (const [index, result] of results.entries()) {

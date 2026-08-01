@@ -53,3 +53,6 @@ Thumbs.db
 **/__pycache__/
 .tmp-*.json
 
+
+# Per-worktree Supabase port assignment
+.supabase-local.json
