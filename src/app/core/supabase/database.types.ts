@@ -34,6 +34,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          currency: string
+          damaged_fee_default: number
+          default_locale: string
+          fine_block_threshold: number
+          id: boolean
+          lost_fee_default: number
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          currency?: string
+          damaged_fee_default?: number
+          default_locale?: string
+          fine_block_threshold?: number
+          id?: boolean
+          lost_fee_default?: number
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          currency?: string
+          damaged_fee_default?: number
+          default_locale?: string
+          fine_block_threshold?: number
+          id?: boolean
+          lost_fee_default?: number
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
@@ -100,6 +133,118 @@ export type Database = {
             columns: ["title_id"]
             isOneToOne: false
             referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fines: {
+        Row: {
+          accrual_rule_snapshot: Json
+          amount: number
+          amount_paid: number
+          created_at: string
+          id: string
+          loan_id: string | null
+          member_id: string
+          reason: Database["public"]["Enums"]["fine_reason"]
+          status: Database["public"]["Enums"]["fine_status"]
+        }
+        Insert: {
+          accrual_rule_snapshot?: Json
+          amount: number
+          amount_paid?: number
+          created_at?: string
+          id?: string
+          loan_id?: string | null
+          member_id: string
+          reason: Database["public"]["Enums"]["fine_reason"]
+          status?: Database["public"]["Enums"]["fine_status"]
+        }
+        Update: {
+          accrual_rule_snapshot?: Json
+          amount?: number
+          amount_paid?: number
+          created_at?: string
+          id?: string
+          loan_id?: string | null
+          member_id?: string
+          reason?: Database["public"]["Enums"]["fine_reason"]
+          status?: Database["public"]["Enums"]["fine_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fines_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fines_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loans: {
+        Row: {
+          checked_out_at: string
+          checked_out_by: string | null
+          copy_id: string
+          created_at: string
+          due_at: string
+          id: string
+          member_id: string
+          renew_count: number
+          returned_at: string | null
+          status: Database["public"]["Enums"]["loan_status"]
+        }
+        Insert: {
+          checked_out_at?: string
+          checked_out_by?: string | null
+          copy_id: string
+          created_at?: string
+          due_at: string
+          id?: string
+          member_id: string
+          renew_count?: number
+          returned_at?: string | null
+          status?: Database["public"]["Enums"]["loan_status"]
+        }
+        Update: {
+          checked_out_at?: string
+          checked_out_by?: string | null
+          copy_id?: string
+          created_at?: string
+          due_at?: string
+          id?: string
+          member_id?: string
+          renew_count?: number
+          returned_at?: string | null
+          status?: Database["public"]["Enums"]["loan_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loans_checked_out_by_fkey"
+            columns: ["checked_out_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loans_copy_id_fkey"
+            columns: ["copy_id"]
+            isOneToOne: false
+            referencedRelation: "copies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loans_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
             referencedColumns: ["id"]
           },
         ]
@@ -261,6 +406,27 @@ export type Database = {
         }
         Returns: Json
       }
+      checkout: {
+        Args: { p_copy_barcodes: string[]; p_member_id: string }
+        Returns: {
+          checked_out_at: string
+          checked_out_by: string | null
+          copy_id: string
+          created_at: string
+          due_at: string
+          id: string
+          member_id: string
+          renew_count: number
+          returned_at: string | null
+          status: Database["public"]["Enums"]["loan_status"]
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "loans"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       log_audit: {
         Args: {
           p_action: string
@@ -322,6 +488,9 @@ export type Database = {
         | "lost"
         | "damaged"
         | "retired"
+      fine_reason: "overdue" | "damaged" | "lost"
+      fine_status: "outstanding" | "paid" | "partial" | "waived"
+      loan_status: "active" | "returned"
       member_status: "active" | "suspended" | "blocked"
       profile_role: "staff" | "admin"
     }
@@ -462,6 +631,9 @@ export const Constants = {
         "damaged",
         "retired",
       ],
+      fine_reason: ["overdue", "damaged", "lost"],
+      fine_status: ["outstanding", "paid", "partial", "waived"],
+      loan_status: ["active", "returned"],
       member_status: ["active", "suspended", "blocked"],
       profile_role: ["staff", "admin"],
     },
