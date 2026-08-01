@@ -218,7 +218,13 @@ begin
   where member_id = p_member_id
     and status = 'active';
 
-  if v_active_count + cardinality(p_copy_barcodes) > v_type.borrow_cap then
+  -- Cap counts distinct non-empty barcodes so duplicates/blanks hit their own
+  -- typed errors in the loop instead of preempting as member_borrow_cap.
+  if v_active_count + (
+    select count(distinct trim(b))::integer
+    from unnest(p_copy_barcodes) as b
+    where trim(b) <> ''
+  ) > v_type.borrow_cap then
     raise exception 'member_borrow_cap' using errcode = 'P0001';
   end if;
 

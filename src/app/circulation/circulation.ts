@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, formatDate } from '@angular/common';
 import { Component, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -350,10 +350,11 @@ export class Circulation {
       return;
     }
     const due = this.store.lastDueAt();
+    const dueLabel = due
+      ? formatDate(due, 'mediumDate', this.transloco.getActiveLang() || 'en')
+      : '';
     this.toast.show(
-      this.transloco.translate('circulation.toasts.checkedOut', {
-        due: due ? new Date(due).toLocaleDateString() : '',
-      }),
+      this.transloco.translate('circulation.toasts.checkedOut', { due: dueLabel }),
     );
   }
 
