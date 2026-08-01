@@ -132,6 +132,13 @@ export type Database = {
             foreignKeyName: "copies_title_id_fkey"
             columns: ["title_id"]
             isOneToOne: false
+            referencedRelation: "overdue_loans"
+            referencedColumns: ["title_id"]
+          },
+          {
+            foreignKeyName: "copies_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
@@ -178,6 +185,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "loans"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fines_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "overdue_loans"
+            referencedColumns: ["loan_id"]
           },
           {
             foreignKeyName: "fines_member_id_fkey"
@@ -479,7 +493,40 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      overdue_loans: {
+        Row: {
+          author: string | null
+          checked_out_at: string | null
+          copy_barcode: string | null
+          copy_id: string | null
+          days_late: number | null
+          due_at: string | null
+          fine_rate_per_day: number | null
+          loan_id: string | null
+          member_card_barcode: string | null
+          member_id: string | null
+          member_name: string | null
+          projected_fine: number | null
+          title: string | null
+          title_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loans_copy_id_fkey"
+            columns: ["copy_id"]
+            isOneToOne: false
+            referencedRelation: "copies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loans_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       add_title_with_copies: {
@@ -513,6 +560,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      checkin: {
+        Args: {
+          p_condition: string
+          p_copy_barcode: string
+          p_damaged_amount?: number
+        }
+        Returns: Json
       }
       checkout: {
         Args: { p_copy_barcodes: string[]; p_member_id: string }
