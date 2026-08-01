@@ -309,6 +309,7 @@ describe('CirculationRepository', () => {
           created_at: '2026-08-01T10:00:00Z',
         },
       ],
+      hold: null,
     };
     const rpcCalls: unknown[] = [];
     const client = {
@@ -336,7 +337,99 @@ describe('CirculationRepository', () => {
       condition: 'ok',
       daysLate: 3,
       fines: payload.fines,
+      hold: null,
     });
+  });
+
+  it('passes the fill-hold choice to the checkin RPC and maps the readied hold', async () => {
+    const payload = {
+      loan: {
+        id: 'l1',
+        copy_id: 'c1',
+        member_id: 'm1',
+        checked_out_by: 'p1',
+        checked_out_at: '2026-07-01T00:00:00Z',
+        due_at: '2026-07-22T00:00:00Z',
+        returned_at: '2026-08-01T10:00:00Z',
+        renew_count: 0,
+        status: 'returned',
+        created_at: '2026-07-01T00:00:00Z',
+      },
+      copy_id: 'c1',
+      barcode: 'BK-100',
+      copy_status: 'on_hold_shelf',
+      condition: 'ok',
+      days_late: null,
+      fines: [],
+      hold: {
+        id: 'h1',
+        member_id: 'm2',
+        member_name: 'Grace',
+        copy_barcode: 'BK-100',
+        expires_at: '2026-08-08T10:00:00Z',
+      },
+    };
+    const rpcCalls: unknown[] = [];
+    const client = {
+      from: () => createQueryBuilder(() => ({ data: null, error: null })),
+      rpc: async (fn: string, args: unknown) => {
+        rpcCalls.push({ fn, args });
+        return { data: payload, error: null };
+      },
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.checkin('BK-100', 'ok', undefined, true);
+
+    expect(rpcCalls).toEqual([
+      {
+        fn: 'checkin',
+        args: { p_copy_barcode: 'BK-100', p_condition: 'ok', p_fill_hold: true },
+      },
+    ]);
+    expect(result).toEqual({
+      ok: true,
+      loan: payload.loan,
+      copyStatus: 'on_hold_shelf',
+      condition: 'ok',
+      daysLate: null,
+      fines: [],
+      hold: payload.hold,
+    });
+  });
+
+  it('counts waiting holds for a title', async () => {
+    const eqCalls: [string, unknown][] = [];
+    const client = {
+      from: (table: string) => {
+        expect(table).toBe('holds');
+        const builder = createQueryBuilder(() => ({ data: null, error: null, count: 3 }));
+        const originalEq = builder['eq'] as (c: string, v: unknown) => unknown;
+        builder['eq'] = (column: string, value: unknown) => {
+          eqCalls.push([column, value]);
+          return originalEq(column, value);
+        };
+        return builder;
+      },
+      rpc: async () => ({ data: null, error: null }),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.countWaitingHolds('t1');
+
+    expect(eqCalls).toEqual([
+      ['title_id', 't1'],
+      ['status', 'waiting'],
+    ]);
+    expect(result).toEqual({ count: 3, error: null });
   });
 
   it('passes the damaged override amount to the checkin RPC', async () => {

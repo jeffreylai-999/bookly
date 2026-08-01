@@ -198,15 +198,29 @@ export class CirculationRepository {
     return { row: data ?? null, error: error?.message ?? null };
   }
 
+  async countWaitingHolds(
+    titleId: string,
+  ): Promise<{ count: number; error: string | null }> {
+    const { count, error } = await this.supabase
+      .from('holds')
+      .select('id', { count: 'exact', head: true })
+      .eq('title_id', titleId)
+      .eq('status', 'waiting');
+
+    return { count: count ?? 0, error: error?.message ?? null };
+  }
+
   async checkin(
     barcode: string,
     condition: CheckinCondition,
     damagedAmount?: number,
+    fillHold = false,
   ): Promise<CheckinResult> {
     const { data, error } = await this.supabase.rpc('checkin', {
       p_copy_barcode: barcode.trim(),
       p_condition: condition,
       ...(damagedAmount === undefined ? {} : { p_damaged_amount: damagedAmount }),
+      ...(fillHold ? { p_fill_hold: true } : {}),
     });
 
     if (error) {
@@ -221,6 +235,7 @@ export class CirculationRepository {
       condition: payload.condition,
       daysLate: payload.days_late,
       fines: payload.fines ?? [],
+      hold: payload.hold ?? null,
     };
   }
 

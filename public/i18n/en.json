@@ -299,7 +299,8 @@
       "hold": {
         "place": "Hold placed",
         "cancel": "Hold cancelled",
-        "mark_ready": "Hold marked ready"
+        "mark_ready": "Hold marked ready",
+        "expire": "Hold expired"
       },
       "fine": {
         "waive": "Fine waived"
@@ -405,6 +406,10 @@
         "damagedAmount": "Damage charge",
         "damagedAmountHint": "Defaults to the library damage fee; adjust for the actual damage."
       },
+      "fillHold": {
+        "label": "Fill hold",
+        "hint": "{{count}} waiting — reserve this copy for the head of the queue."
+      },
       "confirm": {
         "action": "Check in",
         "working": "Checking in…"
@@ -412,6 +417,8 @@
       "result": {
         "heading": "Checked in",
         "copyAvailable": "Copy is back on the shelf.",
+        "copyOnHoldShelf": "Copy is on the hold shelf.",
+        "holdFilled": "Held for {{name}} until {{date}}.",
         "copyDamaged": "Copy is marked damaged.",
         "copyLost": "Copy is marked lost.",
         "daysLate": "{{days}} days late",
@@ -438,6 +445,7 @@
         "invalidCondition": "Pick a condition before confirming.",
         "damagedAmountUnexpected": "A damage charge only applies to a damaged return.",
         "invalidDamagedAmount": "Enter a damage charge of zero or more.",
+        "fillHoldRequiresOk": "Only an ok return can fill a hold.",
         "unexpected": "Check-in failed. Try again in a moment."
       }
     },

@@ -84,6 +84,21 @@ const success: CheckinSuccess = {
       created_at: '2026-08-01T10:00:00Z',
     },
   ],
+  hold: null,
+};
+
+const fillSuccess: CheckinSuccess = {
+  ...success,
+  copyStatus: 'on_hold_shelf',
+  daysLate: null,
+  fines: [],
+  hold: {
+    id: 'h1',
+    member_id: 'm2',
+    member_name: 'Grace Hopper',
+    copy_barcode: 'BK-100',
+    expires_at: '2026-08-08T10:00:00Z',
+  },
 };
 
 describe('CheckinPanel', () => {
@@ -94,6 +109,8 @@ describe('CheckinPanel', () => {
     const busySig = signal(false);
     const resultSig = signal<CheckinSuccess | null>(null);
     const canConfirmSig = signal(false);
+    const waitingHoldsSig = signal(0);
+    const fillHoldSig = signal(false);
 
     const store = {
       candidate: candidateSig.asReadonly(),
@@ -105,9 +122,12 @@ describe('CheckinPanel', () => {
       projection: signal<OverdueLoan | null>(null).asReadonly(),
       damagedAmountValid: signal(true).asReadonly(),
       canConfirm: canConfirmSig.asReadonly(),
+      waitingHolds: waitingHoldsSig.asReadonly(),
+      fillHold: fillHoldSig.asReadonly(),
       selectCopyByBarcode: vi.fn().mockResolvedValue({ error: null }),
       setCondition: vi.fn((c: CheckinCondition) => conditionSig.set(c)),
       setDamagedAmount: vi.fn(),
+      setFillHold: vi.fn((v: boolean) => fillHoldSig.set(v)),
       confirm: vi.fn().mockResolvedValue(success),
       reset: vi.fn(() => {
         candidateSig.set(null);
@@ -118,6 +138,8 @@ describe('CheckinPanel', () => {
       _conditionSig: conditionSig,
       _resultSig: resultSig,
       _canConfirmSig: canConfirmSig,
+      _waitingHoldsSig: waitingHoldsSig,
+      _fillHoldSig: fillHoldSig,
     };
 
     const toast = { show: vi.fn(), error: vi.fn() };
@@ -241,6 +263,47 @@ describe('CheckinPanel', () => {
     expect(text).toContain('Overdue');
     expect(text).toContain('$0.75');
     expect(text).toContain('3 days × $0.25 per day');
+  });
+
+  it('offers fill hold only for an ok return with a waiting queue', async () => {
+    const { fixture, store } = await setup();
+    store._candidateSig.set(candidate);
+    store._waitingHoldsSig.set(2);
+    store._fillHoldSig.set(true);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const checkbox = host.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(checkbox).not.toBeNull();
+    expect(checkbox.checked).toBe(true);
+    expect(host.textContent ?? '').toContain('2 waiting');
+
+    checkbox.click();
+    expect(store.setFillHold).toHaveBeenCalledWith(false);
+
+    store._conditionSig.set('damaged');
+    fixture.detectChanges();
+    expect(host.querySelector('input[type="checkbox"]')).toBeNull();
+  });
+
+  it('hides the fill-hold choice when no holds are waiting', async () => {
+    const { fixture, store } = await setup();
+    store._candidateSig.set(candidate);
+    fixture.detectChanges();
+
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('input[type="checkbox"]'),
+    ).toBeNull();
+  });
+
+  it('names the member the filled hold is shelved for', async () => {
+    const { fixture, store } = await setup();
+    store._resultSig.set(fillSuccess);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Copy is on the hold shelf.');
+    expect(text).toContain('Held for Grace Hopper until');
   });
 
   it('has no serious accessibility violations on the empty panel', async () => {
