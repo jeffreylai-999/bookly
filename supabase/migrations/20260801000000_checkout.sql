@@ -208,7 +208,8 @@ begin
   where f.member_id = p_member_id
     and f.status in ('outstanding', 'partial');
 
-  if v_outstanding >= v_settings.fine_block_threshold then
+  -- Zero outstanding never blocks. Threshold 0 means "any positive balance blocks".
+  if v_outstanding > 0 and v_outstanding >= v_settings.fine_block_threshold then
     raise exception 'member_fine_blocked' using errcode = 'P0001';
   end if;
 
@@ -274,23 +275,24 @@ begin
     set status = 'on_loan'
     where id = v_copy.id;
 
-    insert into public.audit_log (actor, action, entity_type, entity_id, detail)
-    values (
-      v_actor,
-      'loan.checkout',
-      'loan',
-      v_loan.id,
-      jsonb_build_object(
-        'member_id', p_member_id,
-        'copy_id', v_copy.id,
-        'barcode', v_barcode,
-        'due_at', v_due_at
-      )
-    );
-
     v_loan_ids := array_append(v_loan_ids, v_loan.id);
     v_copy_ids := array_append(v_copy_ids, v_copy.id);
   end loop;
+
+  insert into public.audit_log (actor, action, entity_type, entity_id, detail)
+  values (
+    v_actor,
+    'loan.checkout',
+    'loan',
+    v_loan_ids[1],
+    jsonb_build_object(
+      'member_id', p_member_id,
+      'copy_ids', to_jsonb(v_copy_ids),
+      'barcodes', to_jsonb(v_seen),
+      'loan_ids', to_jsonb(v_loan_ids),
+      'due_at', v_due_at
+    )
+  );
 
   return query
   select *

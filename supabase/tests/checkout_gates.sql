@@ -183,8 +183,39 @@ begin
       and entity_type = 'loan'
       and entity_id = v_loan.id
       and detail->>'member_id' = 'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'
+      and detail->'barcodes' ? 'BK-CHK-AVAIL-1'
+      and detail->'copy_ids' ? 'c0cccccc-cccc-cccc-cccc-cccccccccc01'
   ) then
-    raise exception 'checkout should write loan.checkout audit row';
+    raise exception 'checkout should write loan.checkout audit row with copy arrays';
+  end if;
+
+  if (
+    select count(*) from public.audit_log
+    where action = 'loan.checkout'
+      and detail->>'member_id' = 'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'
+  ) <> 1 then
+    raise exception 'checkout should write exactly one audit row per call';
+  end if;
+end $$;
+
+-- Multi-copy checkout: one audit row listing both barcodes.
+do $$
+declare
+  v_count integer;
+begin
+  perform public.checkout(
+    'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+    array['BK-CHK-AVAIL-2', 'BK-CHK-FINE']::text[]
+  );
+
+  select count(*) into v_count
+  from public.audit_log
+  where action = 'loan.checkout'
+    and detail->'barcodes' ? 'BK-CHK-AVAIL-2'
+    and detail->'barcodes' ? 'BK-CHK-FINE';
+
+  if v_count <> 1 then
+    raise exception 'multi-copy checkout should write one audit row with both barcodes';
   end if;
 end $$;
 

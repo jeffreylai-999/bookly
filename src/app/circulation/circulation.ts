@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { map } from 'rxjs';
 
@@ -225,14 +225,28 @@ export class Circulation {
   private readonly toast = inject(ToastService);
   private readonly transloco = inject(TranslocoService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   protected readonly memberSuggestions = signal<CheckoutMember[]>([]);
   protected readonly memberStatusTone = memberStatusTone;
 
   protected readonly copyColumns: TableColumn<CheckoutCopy>[] = [
-    { key: 'title', header: '', width: '45%' },
-    { key: 'barcode', header: '', width: '30%' },
-    { key: 'actions', header: '', width: '25%', align: 'right' },
+    {
+      key: 'title',
+      header: this.transloco.translate('circulation.copies.columns.title'),
+      width: '45%',
+    },
+    {
+      key: 'barcode',
+      header: this.transloco.translate('circulation.copies.columns.barcode'),
+      width: '30%',
+    },
+    {
+      key: 'actions',
+      header: this.transloco.translate('circulation.copies.columns.actions'),
+      width: '25%',
+      align: 'right',
+    },
   ];
 
   private readonly queryParams = toSignal(
@@ -245,20 +259,37 @@ export class Circulation {
     { initialValue: { member: null as string | null, copy: null as string | null } },
   );
 
-  private lastHandledMember: string | null = null;
-  private lastHandledCopy: string | null = null;
+  /** Serializes query-param scan handling so member resolves before copy. */
+  private queryHandleChain: Promise<void> = Promise.resolve();
 
   constructor() {
     effect(() => {
       const { member, copy } = this.queryParams();
-      if (member && member !== this.lastHandledMember) {
-        this.lastHandledMember = member;
-        void this.onMemberScan(member);
+      if (!member && !copy) return;
+      this.queryHandleChain = this.queryHandleChain.then(() =>
+        this.consumeQueryScans(member, copy),
+      );
+    });
+  }
+
+  private async consumeQueryScans(
+    member: string | null,
+    copy: string | null,
+  ): Promise<void> {
+    if (member) {
+      await this.onMemberScan(member);
+    }
+    if (copy) {
+      // Retry once if member query was also present and still settling.
+      if (!this.store.member() && member) {
+        await this.onMemberScan(member);
       }
-      if (copy && copy !== this.lastHandledCopy) {
-        this.lastHandledCopy = copy;
-        void this.onCopyScan(copy);
-      }
+      await this.onCopyScan(copy);
+    }
+    await this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+      replaceUrl: true,
     });
   }
 
