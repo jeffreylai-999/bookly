@@ -83,15 +83,32 @@ insert into public.members (
     '11111111-1111-1111-1111-111111111101',
     'active',
     'MBR-CHECKOUT-7'
+  ),
+  (
+    'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa8',
+    'Ready Hold Member',
+    '11111111-1111-1111-1111-111111111101',
+    'active',
+    'MBR-CHECKOUT-8'
   );
 
+-- Hold fixtures live on their own title so the generic checkout blocks below
+-- cannot fulfil them as a side effect: checkout matches holds on
+-- (title_id, member_id), not on the scanned copy.
 insert into public.titles (id, title, author, genre)
-values (
-  'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-  'Checkout Title',
-  'Desk Author',
-  'Fiction'
-);
+values
+  (
+    'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    'Checkout Title',
+    'Desk Author',
+    'Fiction'
+  ),
+  (
+    'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2',
+    'Checkout Hold Title',
+    'Desk Author',
+    'Fiction'
+  );
 
 -- Service role can set any copy status for fixtures.
 set local role service_role;
@@ -101,22 +118,22 @@ values
   ('c0cccccc-cccc-cccc-cccc-cccccccccc01', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-AVAIL-1', 'available'),
   ('c0cccccc-cccc-cccc-cccc-cccccccccc02', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-AVAIL-2', 'available'),
   ('c0cccccc-cccc-cccc-cccc-cccccccccc03', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-ONLOAN', 'on_loan'),
-  ('c0cccccc-cccc-cccc-cccc-cccccccccc04', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-HOLD', 'on_hold_shelf'),
+  ('c0cccccc-cccc-cccc-cccc-cccccccccc04', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'BK-CHK-HOLD', 'on_hold_shelf'),
   ('c0cccccc-cccc-cccc-cccc-cccccccccc05', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-LOST', 'lost'),
   ('c0cccccc-cccc-cccc-cccc-cccccccccc06', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-DMG', 'damaged'),
   ('c0cccccc-cccc-cccc-cccc-cccccccccc07', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-RET', 'retired'),
   ('c0cccccc-cccc-cccc-cccc-cccccccccc08', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-CAP-1', 'available'),
   ('c0cccccc-cccc-cccc-cccc-cccccccccc09', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-CAP-2', 'available'),
   ('c0cccccc-cccc-cccc-cccc-cccccccccc10', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-FINE', 'available'),
-  ('c0cccccc-cccc-cccc-cccc-cccccccccc11', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BK-CHK-HOLD-WAIT', 'available');
+  ('c0cccccc-cccc-cccc-cccc-cccccccccc11', 'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'BK-CHK-HOLD-WAIT', 'available');
 
 insert into public.holds (
   id, title_id, member_id, queue_position, status, copy_id, ready_at, expires_at
 ) values
   (
     'c0eeeeee-eeee-eeee-eeee-eeeeeeeeeee1',
-    'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+    'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2',
+    'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa8',
     1,
     'ready',
     'c0cccccc-cccc-cccc-cccc-cccccccccc04',
@@ -125,7 +142,7 @@ insert into public.holds (
   ),
   (
     'c0eeeeee-eeee-eeee-eeee-eeeeeeeeeee2',
-    'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    'c0bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2',
     'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa7',
     2,
     'waiting',
@@ -288,7 +305,7 @@ select pg_temp.expect_checkout_error(
 do $$
 begin
   perform public.checkout(
-    'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+    'c0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa8',
     array['BK-CHK-HOLD']::text[]
   );
 
