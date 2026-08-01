@@ -22,6 +22,7 @@ function createQueryBuilder(resolve: () => QueryResult | Promise<QueryResult>) {
     'order',
     'range',
     'in',
+    'is',
     'limit',
     'maybeSingle',
     'single',
@@ -126,5 +127,194 @@ describe('FinesRepository', () => {
     const result = await repo.getCurrency();
 
     expect(result).toEqual({ currency: 'EUR', error: null });
+  });
+
+  it('summarizes outstanding, collected, and waived totals', async () => {
+    const fines = [
+      { amount: 10, amount_paid: 4, status: 'partial' },
+      { amount: 5, amount_paid: 0, status: 'outstanding' },
+      { amount: 8, amount_paid: 8, status: 'paid' },
+      { amount: 6, amount_paid: 2, status: 'waived' },
+    ];
+    const payments = [{ amount: 4 }, { amount: 8 }, { amount: 2 }];
+    const isCalls: [string, unknown][] = [];
+    const client = {
+      from: (table: string) => {
+        if (table === 'fines') {
+          return createQueryBuilder(() => ({ data: fines, error: null }));
+        }
+        expect(table).toBe('payments');
+        const builder = createQueryBuilder(() => ({ data: payments, error: null }));
+        const originalIs = builder['is'] as (c: string, v: unknown) => unknown;
+        builder['is'] = (column: string, value: unknown) => {
+          isCalls.push([column, value]);
+          return originalIs(column, value);
+        };
+        return builder;
+      },
+    };
+
+    TestBed.configureTestingModule({
+      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(FinesRepository);
+    const result = await repo.summary();
+
+    expect(isCalls).toEqual([['voided_by', null]]);
+    expect(result.error).toBeNull();
+    // outstanding: (10-4) + (5-0); paid excluded; waived: 6-2; collected: 4+8+2.
+    expect(result.row).toEqual({ outstandingBalance: 11, collectedTotal: 14, waivedTotal: 4 });
+  });
+
+  it('fails the summary when the fines read fails', async () => {
+    const client = {
+      from: () => createQueryBuilder(() => ({ data: null, error: { message: 'boom' } })),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(FinesRepository);
+    const result = await repo.summary();
+
+    expect(result).toEqual({ row: null, error: 'boom' });
+  });
+
+  it('lists payments oldest-first for a fine', async () => {
+    const eqCalls: [string, unknown][] = [];
+    const orderCalls: [string, { ascending: boolean }][] = [];
+    const client = {
+      from: (table: string) => {
+        expect(table).toBe('payments');
+        const builder = createQueryBuilder(() => ({ data: [], error: null }));
+        const originalEq = builder['eq'] as (c: string, v: unknown) => unknown;
+        builder['eq'] = (column: string, value: unknown) => {
+          eqCalls.push([column, value]);
+          return originalEq(column, value);
+        };
+        const originalOrder = builder['order'] as (
+          c: string,
+          o: { ascending: boolean },
+        ) => unknown;
+        builder['order'] = (column: string, options: { ascending: boolean }) => {
+          orderCalls.push([column, options]);
+          return originalOrder(column, options);
+        };
+        return builder;
+      },
+    };
+
+    TestBed.configureTestingModule({
+      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(FinesRepository);
+    await repo.listPayments('f1');
+
+    expect(eqCalls).toEqual([['fine_id', 'f1']]);
+    expect(orderCalls).toEqual([['created_at', { ascending: true }]]);
+  });
+
+  it('recordPayment calls the RPC and maps the receipt payload', async () => {
+    const payload = {
+      payment: { id: 'p1', fine_id: 'f1', amount: 4, method: 'cash' },
+      fine: { id: 'f1', amount: 10, amount_paid: 4, status: 'partial' },
+    };
+    const rpc = vi.fn().mockResolvedValue({ data: payload, error: null });
+
+    TestBed.configureTestingModule({
+      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: { rpc } }],
+    });
+
+    const repo = TestBed.inject(FinesRepository);
+    const result = await repo.recordPayment('f1', 4, 'cash');
+
+    expect(rpc).toHaveBeenCalledWith('record_payment', {
+      p_fine_id: 'f1',
+      p_amount: 4,
+      p_method: 'cash',
+    });
+    expect(result).toEqual({ ok: true, receipt: payload });
+  });
+
+  it('recordPayment maps typed RPC errors', async () => {
+    const rpc = vi
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'payment_exceeds_balance' } });
+
+    TestBed.configureTestingModule({
+      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: { rpc } }],
+    });
+
+    const repo = TestBed.inject(FinesRepository);
+    const result = await repo.recordPayment('f1', 99, 'cash');
+
+    expect(result).toEqual({ ok: false, error: 'payment_exceeds_balance' });
+  });
+
+  it('waiveFine calls the RPC and returns the updated fine', async () => {
+    const fine = { id: 'f1', status: 'waived', amount_paid: 2 };
+    const rpc = vi.fn().mockResolvedValue({ data: fine, error: null });
+
+    TestBed.configureTestingModule({
+      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: { rpc } }],
+    });
+
+    const repo = TestBed.inject(FinesRepository);
+    const result = await repo.waiveFine('f1', 'goodwill');
+
+    expect(rpc).toHaveBeenCalledWith('waive_fine', { p_fine_id: 'f1', p_reason: 'goodwill' });
+    expect(result).toEqual({ ok: true, fine });
+  });
+
+  it('waiveFine maps the admin gate', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'admin_required' } });
+
+    TestBed.configureTestingModule({
+      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: { rpc } }],
+    });
+
+    const repo = TestBed.inject(FinesRepository);
+    const result = await repo.waiveFine('f1', 'goodwill');
+
+    expect(result).toEqual({ ok: false, error: 'admin_required' });
+  });
+
+  it('voidPayment calls the RPC and maps the recomputed payload', async () => {
+    const payload = {
+      payment: { id: 'p1', fine_id: 'f1', amount: 4, voided_by: 'admin' },
+      fine: { id: 'f1', amount: 10, amount_paid: 0, status: 'outstanding' },
+    };
+    const rpc = vi.fn().mockResolvedValue({ data: payload, error: null });
+
+    TestBed.configureTestingModule({
+      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: { rpc } }],
+    });
+
+    const repo = TestBed.inject(FinesRepository);
+    const result = await repo.voidPayment('p1', 'wrong amount');
+
+    expect(rpc).toHaveBeenCalledWith('void_payment', {
+      p_payment_id: 'p1',
+      p_reason: 'wrong amount',
+    });
+    expect(result).toEqual({ ok: true, ...payload });
+  });
+
+  it('voidPayment maps typed RPC errors', async () => {
+    const rpc = vi
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'payment_already_voided' } });
+
+    TestBed.configureTestingModule({
+      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: { rpc } }],
+    });
+
+    const repo = TestBed.inject(FinesRepository);
+    const result = await repo.voidPayment('p1', 'again');
+
+    expect(result).toEqual({ ok: false, error: 'payment_already_voided' });
   });
 });
