@@ -217,5 +217,96 @@
       "statusFailed": "Could not update member status",
       "auditFailed": "Member saved, but the audit entry could not be written"
     }
+  },
+  "audit": {
+    "title": "Audit log",
+    "subtitle": "{{count}} entries",
+    "filtersLabel": "Audit filters",
+    "tableCaption": "Audit log entries",
+    "loading": "Loading audit log",
+    "unknownActor": "Unknown actor",
+    "filters": {
+      "actor": "Filter by actor",
+      "action": "Filter by action",
+      "entity": "Filter by entity",
+      "from": "From date",
+      "to": "To date",
+      "allActors": "All actors",
+      "allActions": "All actions",
+      "allEntities": "All entities"
+    },
+    "columns": {
+      "when": "When",
+      "actor": "Actor",
+      "action": "Action",
+      "entity": "Entity",
+      "detail": "Detail"
+    },
+    "actions": {
+      "clearFilters": "Clear filters",
+      "viewDetail": "View detail"
+    },
+    "empty": {
+      "headline": "No audit entries yet",
+      "message": "Desk actions write here as staff use the system.",
+      "filteredHeadline": "No entries match",
+      "filteredMessage": "Try different filters or clear them to see the full log."
+    },
+    "errors": {
+      "loadFailed": "Couldn't load the audit log. Check your connection and try again.",
+      "actorsLoadFailed": "Couldn't load staff actors. Actor filter is unavailable until this recovers."
+    },
+    "pagination": {
+      "prev": "Previous page",
+      "next": "Next page",
+      "nav": "Audit log pagination",
+      "summary": "Showing {{from}}–{{to}} of {{total}}"
+    },
+    "detail": {
+      "heading": "Audit detail",
+      "close": "Close dialog"
+    },
+    "entityTypes": {
+      "member": "Member",
+      "title": "Title",
+      "copy": "Copy",
+      "loan": "Loan",
+      "hold": "Hold",
+      "fine": "Fine",
+      "payment": "Payment"
+    },
+    "actionCodes": {
+      "member": {
+        "create": "Member created",
+        "update": "Member updated",
+        "status": "Member status changed"
+      },
+      "title": {
+        "create": "Title created",
+        "update": "Title updated"
+      },
+      "copy": {
+        "create": "Copy created",
+        "update": "Copy updated",
+        "set_status": "Copy status changed"
+      },
+      "loan": {
+        "checkout": "Checked out",
+        "checkin": "Checked in",
+        "renew": "Loan renewed"
+      },
+      "hold": {
+        "place": "Hold placed",
+        "cancel": "Hold cancelled",
+        "mark_ready": "Hold marked ready"
+      },
+      "fine": {
+        "waive": "Fine waived"
+      },
+      "payment": {
+        "record": "Payment recorded",
+        "void": "Payment voided"
+      }
+    }
   }
 }

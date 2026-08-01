@@ -38,6 +38,7 @@ describe('auth guards', () => {
           { path: 'login', canActivate: [guestGuard], component: Blank },
           { path: '', canActivate: [authGuard], component: Blank },
           { path: 'settings', canActivate: [adminGuard], component: Blank },
+          { path: 'audit', canActivate: [adminGuard], component: Blank },
         ]),
         { provide: AuthService, useValue: auth },
       ],
@@ -72,5 +73,13 @@ describe('auth guards', () => {
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/settings');
     expect(TestBed.inject(Router).url).toBe('/settings');
+  });
+
+  it('adminGuard blocks staff from /audit', async () => {
+    auth.authenticated = true;
+    auth.admin = false;
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/audit');
+    expect(TestBed.inject(Router).url).toBe('/');
   });
 });

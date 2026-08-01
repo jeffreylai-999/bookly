@@ -14,8 +14,10 @@
     "supabase:types": "node scripts/gen-db-types.mjs",
     "seed:auth": "node --env-file=.env scripts/seed-auth.mjs",
     "test:sql:profiles-role": "node scripts/run-profiles-role-test.mjs",
+    "test:sql:profiles-select-admin": "node scripts/run-profiles-select-admin-test.mjs",
     "test:sql:members": "node scripts/run-members-status-audit-test.mjs",
-    "test:sql:copies-status": "node scripts/run-copies-status-test.mjs"  },
+    "test:sql:copies-status": "node scripts/run-copies-status-test.mjs"
+  },
   "private": true,
   "packageManager": "pnpm@10.11.0",
   "dependencies": {
