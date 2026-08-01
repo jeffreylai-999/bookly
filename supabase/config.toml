@@ -92,7 +92,7 @@ enabled = true
 # max_header_length = 4096
 
 [studio]
-enabled = false
+enabled = true
 # Port to use for Supabase Studio.
 port = "env(BOOKLY_PORT_STUDIO)"
 # External URL of the API server that frontend connects to.
@@ -387,7 +387,7 @@ deno_version = 2
 # secret_key = "env(SECRET_VALUE)"
 
 [analytics]
-enabled = false
+enabled = true
 port = "env(BOOKLY_PORT_ANALYTICS)"
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"

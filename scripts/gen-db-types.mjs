@@ -9,12 +9,17 @@
  */
 import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
+import { supabaseEnv } from './supabase-project.mjs';
 
 const OUT = 'src/app/core/supabase/database.types.ts';
 
+// `--local` resolves the target stack from config.toml, whose project id and
+// ports are env() placeholders. Without these injected the CLI reads them as
+// empty and generates against a non-existent project.
 const result = spawnSync('supabase', ['gen', 'types', 'typescript', '--local'], {
   encoding: 'utf8',
   shell: true,
+  env: { ...process.env, ...supabaseEnv() },
 });
 
 if (result.status !== 0) {
