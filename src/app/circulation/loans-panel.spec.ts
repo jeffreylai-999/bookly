@@ -65,6 +65,7 @@ describe('LoansPanel', () => {
       pageSize: 10,
       loading: signal(false).asReadonly(),
       error: signal<string | null>(null).asReadonly(),
+      currency: signal('USD').asReadonly(),
       empty: signal(false).asReadonly(),
       init: vi.fn().mockResolvedValue(undefined),
       setTab: vi.fn(async (tab: LoansTab) => tabSig.set(tab)),

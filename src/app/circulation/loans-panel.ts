@@ -95,7 +95,7 @@ const EMPTY_KEYS: Record<LoansTab, { headline: string; message: string }> = {
           </ng-template>
           <ng-template uiCell="projectedFine" let-row>
             <span class="font-semibold tabular-nums">
-              {{ (row.projected_fine ?? 0) | currency }}
+              {{ (row.projected_fine ?? 0) | currency: store.currency() }}
             </span>
           </ng-template>
           <ui-empty-state

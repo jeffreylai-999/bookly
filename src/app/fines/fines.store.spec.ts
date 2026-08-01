@@ -37,13 +37,11 @@ describe('FinesStore', () => {
     const list = vi.fn().mockResolvedValue({ rows: [], total: 0, error: null });
     const store = setup({ list });
     await store.init();
-    store.setPage(2);
+    await store.setPage(2);
 
-    store.setStatusFilter('outstanding');
-    await vi.waitFor(() =>
-      expect(list).toHaveBeenCalledWith({ page: 1, pageSize: 10, status: 'outstanding' }),
-    );
+    await store.setStatusFilter('outstanding');
 
+    expect(list).toHaveBeenCalledWith({ page: 1, pageSize: 10, status: 'outstanding' });
     expect(store.page()).toBe(1);
     expect(store.statusFilter()).toBe('outstanding');
   });
