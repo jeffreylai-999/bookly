@@ -119,18 +119,39 @@ function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function cleanupConcurrencyFixture(container, { allowFailure = false } = {}) {
+  return psql(
+    container,
+    `
+drop table if exists public._holds_conc_barrier;
+do $$
+begin
+  if to_regclass('public.holds') is not null then
+    execute 'delete from public.holds where title_id = ''${TITLE_ID}''';
+  end if;
+end $$;
+delete from public.members where id in ('${MEMBER_ONE_ID}', '${MEMBER_TWO_ID}');
+delete from public.titles where id = '${TITLE_ID}';
+delete from public.profiles where id = '${STAFF_ID}';
+delete from auth.users where id = '${STAFF_ID}';
+`,
+    { allowFailure },
+  );
+}
+
 const container = resolveContainer();
-let concurrencyFixtureCreated = false;
 
 try {
   const gates = psql(container, readFileSync('supabase/tests/holds_gates.sql', 'utf8'));
   process.stdout.write(gates.stdout ?? '');
   process.stderr.write(gates.stderr ?? '');
 
+  cleanupConcurrencyFixture(container);
+
   psql(
     container,
     `
-drop table if exists public._holds_conc_barrier;
+begin;
 create table public._holds_conc_barrier (
   id integer primary key,
   ready_count integer not null default 0,
@@ -173,9 +194,9 @@ values
 
 insert into public.titles (id, title, author, genre)
 values ('${TITLE_ID}', 'Concurrent Hold Title', 'Desk Author', 'Fiction');
+commit;
 `,
   );
-  concurrencyFixtureCreated = true;
 
   const workers = [runWorker(container, MEMBER_ONE_ID), runWorker(container, MEMBER_TWO_ID)];
 
@@ -233,22 +254,9 @@ select 'holds concurrency: queue positions 1,2' as result;
   process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
   process.exitCode = 1;
 } finally {
-  if (concurrencyFixtureCreated) {
-    const cleanup = psql(
-      container,
-      `
-drop table if exists public._holds_conc_barrier;
-delete from public.holds where title_id = '${TITLE_ID}';
-delete from public.members where id in ('${MEMBER_ONE_ID}', '${MEMBER_TWO_ID}');
-delete from public.titles where id = '${TITLE_ID}';
-delete from public.profiles where id = '${STAFF_ID}';
-delete from auth.users where id = '${STAFF_ID}';
-`,
-      { allowFailure: true },
-    );
-    if (cleanup.status !== 0) {
-      process.stderr.write(`Failed to remove hold concurrency fixture:\n${cleanup.stderr ?? ''}\n`);
-      process.exitCode = 1;
-    }
+  const cleanup = cleanupConcurrencyFixture(container, { allowFailure: true });
+  if (cleanup.status !== 0) {
+    process.stderr.write(`Failed to remove hold concurrency fixture:\n${cleanup.stderr ?? ''}\n`);
+    process.exitCode = 1;
   }
 }
