@@ -118,6 +118,18 @@ describe('FinesStore', () => {
     expect(store.paymentsLoading()).toBe(false);
   });
 
+  it('openDetails surfaces payments errors instead of a misleading empty state', async () => {
+    const store = setup({
+      listPayments: vi.fn().mockResolvedValue({ rows: [], error: 'boom' }),
+    });
+
+    await store.openDetails(fineRow);
+
+    expect(store.paymentsError()).toBe('boom');
+    expect(store.payments()).toEqual([]);
+    expect(store.paymentsLoading()).toBe(false);
+  });
+
   it('recordPayment stores the receipt and refreshes list + summary', async () => {
     const list = vi.fn().mockResolvedValue({ rows: [], total: 0, error: null });
     const summary = vi.fn().mockResolvedValue({ row: summaryRow, error: null });
@@ -210,5 +222,6 @@ describe('FinesStore', () => {
 
     expect(store.selectedFine()).toBeNull();
     expect(store.payments()).toEqual([]);
+    expect(store.paymentsError()).toBeNull();
   });
 });

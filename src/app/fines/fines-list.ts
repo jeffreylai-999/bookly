@@ -421,6 +421,10 @@ type ReasonFormValue = { reason: string };
             </p>
             @if (store.paymentsLoading()) {
               <div class="mt-2"><ui-skeleton [rows]="2" /></div>
+            } @else if (store.paymentsError()) {
+              <p role="alert" class="mt-1.5 text-sm font-semibold text-danger">
+                {{ 'fines.details.paymentsError' | transloco }}
+              </p>
             } @else if (store.payments().length === 0) {
               <p class="mt-1.5 text-sm text-ink-muted">
                 {{ 'fines.details.paymentsEmpty' | transloco }}

@@ -101,6 +101,7 @@ describe('FinesList', () => {
     const summarySig = signal<FineSummary | null>(summaryRow);
     const selectedSig = signal<FineListItem | null>(null);
     const paymentsSig = signal<Payment[]>([]);
+    const paymentsErrorSig = signal<string | null>(null);
     const receiptSig = signal<FineReceipt | null>(null);
 
     const store = {
@@ -117,6 +118,7 @@ describe('FinesList', () => {
       selectedFine: selectedSig.asReadonly(),
       payments: paymentsSig.asReadonly(),
       paymentsLoading: signal(false).asReadonly(),
+      paymentsError: paymentsErrorSig.asReadonly(),
       busy: signal(false).asReadonly(),
       receipt: receiptSig.asReadonly(),
       empty: signal(false).asReadonly(),
@@ -148,6 +150,7 @@ describe('FinesList', () => {
       _summarySig: summarySig,
       _selectedSig: selectedSig,
       _paymentsSig: paymentsSig,
+      _paymentsErrorSig: paymentsErrorSig,
       _receiptSig: receiptSig,
     };
 
@@ -370,6 +373,31 @@ describe('FinesList', () => {
     expect(dialog.textContent).toContain('Default damaged fee charged');
     expect(dialog.textContent).toContain('$4.00');
     expect(dialog.textContent).toContain('Void');
+  });
+
+  it('shows an error in details when payments fail to load', async () => {
+    const { fixture, store } = await setup({
+      openDetails: vi.fn(async (row: FineListItem) => {
+        store._selectedSig.set(row);
+        store._paymentsErrorSig.set('boom');
+      }),
+    });
+    store._rowsSig.set([fine]);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    const detailsButton = [...host.querySelectorAll('tbody button')].find((b) =>
+      (b.textContent ?? '').includes('Details'),
+    ) as HTMLButtonElement;
+    detailsButton.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const dialog = [...host.querySelectorAll('dialog[open]')].find((d) =>
+      (d.textContent ?? '').includes('Fine details'),
+    ) as HTMLElement;
+    expect(dialog.textContent).toContain("Couldn't load payments");
+    expect(dialog.textContent).not.toContain('No payments yet');
   });
 
   it('hides the void action from staff in details', async () => {
