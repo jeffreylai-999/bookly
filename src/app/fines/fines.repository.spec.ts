@@ -129,28 +129,14 @@ describe('FinesRepository', () => {
     expect(result).toEqual({ currency: 'EUR', error: null });
   });
 
-  it('summarizes outstanding, collected, and waived totals', async () => {
-    const fines = [
-      { amount: 10, amount_paid: 4, status: 'partial' },
-      { amount: 5, amount_paid: 0, status: 'outstanding' },
-      { amount: 8, amount_paid: 8, status: 'paid' },
-      { amount: 6, amount_paid: 2, status: 'waived' },
-    ];
-    const payments = [{ amount: 4 }, { amount: 8 }, { amount: 2 }];
-    const isCalls: [string, unknown][] = [];
+  it('reads desk totals from the fines_summary view', async () => {
     const client = {
       from: (table: string) => {
-        if (table === 'fines') {
-          return createQueryBuilder(() => ({ data: fines, error: null }));
-        }
-        expect(table).toBe('payments');
-        const builder = createQueryBuilder(() => ({ data: payments, error: null }));
-        const originalIs = builder['is'] as (c: string, v: unknown) => unknown;
-        builder['is'] = (column: string, value: unknown) => {
-          isCalls.push([column, value]);
-          return originalIs(column, value);
-        };
-        return builder;
+        expect(table).toBe('fines_summary');
+        return createQueryBuilder(() => ({
+          data: { outstanding_balance: 11, collected_total: 14, waived_total: 4 },
+          error: null,
+        }));
       },
     };
 
@@ -161,13 +147,11 @@ describe('FinesRepository', () => {
     const repo = TestBed.inject(FinesRepository);
     const result = await repo.summary();
 
-    expect(isCalls).toEqual([['voided_by', null]]);
     expect(result.error).toBeNull();
-    // outstanding: (10-4) + (5-0); paid excluded; waived: 6-2; collected: 4+8+2.
     expect(result.row).toEqual({ outstandingBalance: 11, collectedTotal: 14, waivedTotal: 4 });
   });
 
-  it('fails the summary when the fines read fails', async () => {
+  it('fails the summary when the view read fails', async () => {
     const client = {
       from: () => createQueryBuilder(() => ({ data: null, error: { message: 'boom' } })),
     };

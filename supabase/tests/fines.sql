@@ -520,4 +520,27 @@ begin
   end if;
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- fines_summary view: desk totals aggregated in SQL.
+--   outstanding: f3 8.00 (payments voided away) + f4 9.00 (12 − 3) = 17.00
+--   collected:   f1 10.00 + f2 2.00 + f4 3.00 + f5 2.00 (f3's are void) = 17.00
+--   waived:      f2 3.00 (5 − 2) + f5 4.00 (6 − 2) = 7.00
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_summary record;
+begin
+  select * into v_summary from public.fines_summary;
+
+  if v_summary.outstanding_balance <> 17.00 then
+    raise exception 'expected outstanding_balance 17.00, got %', v_summary.outstanding_balance;
+  end if;
+  if v_summary.collected_total <> 17.00 then
+    raise exception 'expected collected_total 17.00, got %', v_summary.collected_total;
+  end if;
+  if v_summary.waived_total <> 7.00 then
+    raise exception 'expected waived_total 7.00, got %', v_summary.waived_total;
+  end if;
+end $$;
+
 rollback;
