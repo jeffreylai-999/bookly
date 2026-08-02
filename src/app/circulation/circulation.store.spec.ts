@@ -238,4 +238,37 @@ describe('CirculationStore', () => {
     store.reset();
     expect(store.money()).toBeNull();
   });
+
+  it('retries the settings read after a failure instead of latching', async () => {
+    const getSettings = vi
+      .fn()
+      .mockResolvedValueOnce({ row: null, error: 'boom' })
+      .mockResolvedValueOnce({ row: { currency: 'EUR', damaged_fee_default: 10 }, error: null });
+
+    await TestBed.configureTestingModule({
+      providers: [
+        CirculationStore,
+        {
+          provide: CirculationRepository,
+          useValue: {
+            findMemberByCard: vi.fn(),
+            findCopyByBarcode: vi.fn(),
+            searchMembers: vi.fn(),
+            checkout: vi.fn(),
+            getMemberMoney: vi.fn().mockResolvedValue({ row: null, error: null }),
+            getSettings,
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const store = TestBed.inject(CirculationStore);
+    store.setMember(member);
+    await vi.waitFor(() => expect(getSettings).toHaveBeenCalledTimes(1));
+    expect(store.currency()).toBe('USD');
+
+    store.setMember({ ...member, id: 'm2', card_barcode: 'MBR-ADA-2' });
+    await vi.waitFor(() => expect(store.currency()).toBe('EUR'));
+    expect(getSettings).toHaveBeenCalledTimes(2);
+  });
 });
