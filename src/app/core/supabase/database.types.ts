@@ -255,13 +255,6 @@ export type Database = {
             foreignKeyName: "holds_title_id_fkey"
             columns: ["title_id"]
             isOneToOne: false
-            referencedRelation: "overdue_loans"
-            referencedColumns: ["title_id"]
-          },
-          {
-            foreignKeyName: "holds_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
             referencedRelation: "titles"
             referencedColumns: ["id"]
           },
@@ -558,6 +551,14 @@ export type Database = {
       }
     }
     Views: {
+      fines_summary: {
+        Row: {
+          collected_total: number | null
+          outstanding_balance: number | null
+          waived_total: number | null
+        }
+        Relationships: []
+      }
       overdue_loans: {
         Row: {
           author: string | null

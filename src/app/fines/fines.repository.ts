@@ -2,7 +2,6 @@ import { Service, inject } from '@angular/core';
 
 import { SUPABASE_CLIENT } from '../core/supabase';
 import type {
-  Fine,
   FineActionPayload,
   FineListItem,
   FineStatusFilter,
@@ -66,42 +65,21 @@ export class FinesRepository {
     return { currency: data?.currency ?? 'USD', error: error?.message ?? null };
   }
 
-  /**
-   * All-time desk totals. Fines and payments are small desk tables, so the
-   * sums are computed client-side from two full reads rather than a view.
-   */
+  /** All-time desk totals, aggregated in SQL by the fines_summary view. */
   async summary(): Promise<{ row: FineSummary | null; error: string | null }> {
-    const fines = await this.supabase.from('fines').select('amount, amount_paid, status');
-    if (fines.error) {
-      return { row: null, error: fines.error.message };
+    const { data, error } = await this.supabase.from('fines_summary').select('*').single();
+    if (error) {
+      return { row: null, error: error.message };
     }
 
-    const payments = await this.supabase
-      .from('payments')
-      .select('amount')
-      .is('voided_by', null);
-    if (payments.error) {
-      return { row: null, error: payments.error.message };
-    }
-
-    const rows = (fines.data as Pick<Fine, 'amount' | 'amount_paid' | 'status'>[] | null) ?? [];
-    let outstandingBalance = 0;
-    let waivedTotal = 0;
-    for (const fine of rows) {
-      const balance = fine.amount - fine.amount_paid;
-      if (fine.status === 'waived') {
-        waivedTotal += balance;
-      } else if (fine.status === 'outstanding' || fine.status === 'partial') {
-        outstandingBalance += balance;
-      }
-    }
-
-    const collectedTotal = ((payments.data as Pick<Payment, 'amount'>[] | null) ?? []).reduce(
-      (sum, payment) => sum + payment.amount,
-      0,
-    );
-
-    return { row: { outstandingBalance, collectedTotal, waivedTotal }, error: null };
+    return {
+      row: {
+        outstandingBalance: data?.outstanding_balance ?? 0,
+        collectedTotal: data?.collected_total ?? 0,
+        waivedTotal: data?.waived_total ?? 0,
+      },
+      error: null,
+    };
   }
 
   async listPayments(fineId: string): Promise<{ rows: Payment[]; error: string | null }> {
