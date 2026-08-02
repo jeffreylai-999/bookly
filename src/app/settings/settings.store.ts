@@ -151,6 +151,9 @@ export class SettingsStore {
       this.memberTypesState.set([]);
       return;
     }
+    // A successful reload clears any earlier load failure — otherwise a stale
+    // error would misreport the next save as load_failed and keep the alert up.
+    this.errorState.set(null);
     this.memberTypesState.set(result.rows);
   }
 }

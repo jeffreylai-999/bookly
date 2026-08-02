@@ -233,4 +233,22 @@ describe('SettingsStore', () => {
 
     expect(result.error).toBe('audit_failed');
   });
+
+  it('clears a stale load error once a post-save reload succeeds', async () => {
+    const listMemberTypes = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], error: 'down' })
+      .mockResolvedValue({ rows: [sampleType], error: null });
+    const repo = repoFake({ listMemberTypes });
+    const { store } = await createStore(repo);
+
+    await store.init();
+    expect(store.error()).toBe('down');
+
+    const result = await store.saveMemberType('t1', typeForm);
+
+    expect(result.error).toBeNull();
+    expect(store.error()).toBeNull();
+    expect(store.memberTypes()).toEqual([sampleType]);
+  });
 });

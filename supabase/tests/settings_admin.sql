@@ -428,8 +428,84 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- log_audit: settings codes allowed, flow codes still rejected.
+-- log_audit: settings codes are admin-only (they log admin-only writes), staff
+-- codes stay staff-loggable, flow codes stay RPC-only.
 -- ---------------------------------------------------------------------------
+reset role;
+set local role authenticated;
+set local request.jwt.claim.sub = 'dddddddd-dddd-dddd-dddd-dddddddd0001';
+set local request.jwt.claim.role = 'authenticated';
+set local request.jwt.claims = '{"sub":"dddddddd-dddd-dddd-dddd-dddddddd0001","role":"authenticated"}';
+
+-- Staff cannot forge a settings.update audit row.
+do $$
+declare
+  raised boolean := false;
+begin
+  begin
+    perform public.log_audit(
+      'settings.update',
+      'app_settings',
+      '00000000-0000-0000-0000-000000000000',
+      '{}'::jsonb
+    );
+  exception
+    when others then
+      if sqlerrm = 'admin_required' then
+        raised := true;
+      else
+        raise;
+      end if;
+  end;
+
+  if not raised then
+    raise exception 'expected admin_required when staff logs settings.update';
+  end if;
+end $$;
+
+-- Staff cannot forge a member_type.delete audit row either.
+do $$
+declare
+  raised boolean := false;
+begin
+  begin
+    perform public.log_audit(
+      'member_type.delete',
+      'member_type',
+      '11111111-1111-1111-1111-111111111101',
+      '{}'::jsonb
+    );
+  exception
+    when others then
+      if sqlerrm = 'admin_required' then
+        raised := true;
+      else
+        raise;
+      end if;
+  end;
+
+  if not raised then
+    raise exception 'expected admin_required when staff logs member_type.delete';
+  end if;
+end $$;
+
+-- Staff-level codes remain loggable by staff.
+do $$
+declare
+  v_id uuid;
+begin
+  v_id := public.log_audit(
+    'member.update',
+    'member',
+    'dddddddd-dddd-dddd-dddd-dddddddd0101',
+    '{"name":"Settings Member One"}'::jsonb
+  );
+
+  if v_id is null then
+    raise exception 'staff should still log member.update';
+  end if;
+end $$;
+
 reset role;
 set local role authenticated;
 set local request.jwt.claim.sub = 'dddddddd-dddd-dddd-dddd-dddddddd0002';
