@@ -32,6 +32,7 @@ export class FinesStore {
   private readonly selectedFineState = signal<FineListItem | null>(null);
   private readonly paymentsState = signal<Payment[]>([]);
   private readonly paymentsLoadingState = signal(false);
+  private readonly paymentsErrorState = signal<string | null>(null);
   private readonly busyState = signal(false);
   private readonly receiptState = signal<FineReceipt | null>(null);
 
@@ -48,6 +49,7 @@ export class FinesStore {
   readonly selectedFine = this.selectedFineState.asReadonly();
   readonly payments = this.paymentsState.asReadonly();
   readonly paymentsLoading = this.paymentsLoadingState.asReadonly();
+  readonly paymentsError = this.paymentsErrorState.asReadonly();
   readonly busy = this.busyState.asReadonly();
   readonly receipt = this.receiptState.asReadonly();
   readonly empty = computed(
@@ -112,10 +114,15 @@ export class FinesStore {
   async openDetails(fine: FineListItem): Promise<void> {
     this.selectedFineState.set(fine);
     this.paymentsState.set([]);
+    this.paymentsErrorState.set(null);
     this.paymentsLoadingState.set(true);
     try {
-      const { rows } = await this.repo.listPayments(fine.id);
+      const { rows, error } = await this.repo.listPayments(fine.id);
       if (this.selectedFineState()?.id !== fine.id) return;
+      if (error) {
+        this.paymentsErrorState.set(error);
+        return;
+      }
       this.paymentsState.set(rows);
     } finally {
       if (this.selectedFineState()?.id === fine.id) {
@@ -128,6 +135,7 @@ export class FinesStore {
     this.selectedFineState.set(null);
     this.paymentsState.set([]);
     this.paymentsLoadingState.set(false);
+    this.paymentsErrorState.set(null);
   }
 
   clearReceipt(): void {
@@ -193,9 +201,12 @@ export class FinesStore {
   }
 
   private async loadPayments(fineId: string): Promise<void> {
-    const { rows } = await this.repo.listPayments(fineId);
-    if (this.selectedFineState()?.id === fineId) {
-      this.paymentsState.set(rows);
+    const { rows, error } = await this.repo.listPayments(fineId);
+    if (this.selectedFineState()?.id !== fineId) return;
+    if (error) {
+      this.paymentsErrorState.set(error);
+      return;
     }
+    this.paymentsState.set(rows);
   }
 }

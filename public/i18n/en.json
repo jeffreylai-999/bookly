@@ -578,6 +578,7 @@
       "returned": "returned {{returned}}",
       "paymentsHeading": "Payments",
       "paymentsEmpty": "No payments yet.",
+      "paymentsError": "Couldn't load payments for this fine. Close and try again.",
       "voidedBadge": "Voided",
       "voidReason": "Voided: {{reason}}",
       "void": "Void",
