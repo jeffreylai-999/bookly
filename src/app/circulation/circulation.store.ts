@@ -160,9 +160,10 @@ export class CirculationStore {
 
   private async ensureSettings(): Promise<void> {
     if (this.settingsLoaded) return;
-    this.settingsLoaded = true;
     const { row } = await this.repo.getSettings();
     if (row) {
+      // Only latch on success — a failed read must retry on the next member.
+      this.settingsLoaded = true;
       this.currencyState.set(row.currency);
     }
   }
