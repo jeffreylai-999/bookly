@@ -31,6 +31,7 @@ declare
   v_settings public.app_settings;
   v_outstanding numeric(12, 2);
   v_previous_due_at timestamptz;
+  v_now timestamptz;
 begin
   if v_actor is null then
     raise exception 'not_authenticated' using errcode = 'P0001';
@@ -68,6 +69,11 @@ begin
   if v_loan.status <> 'active' then
     raise exception 'loan_not_found' using errcode = 'P0001';
   end if;
+
+  -- clock_timestamp(), not now(): now() is the transaction start, so a renewal
+  -- that waited on the locks above would gate overdue against — and date the
+  -- fresh period from — a moment before the wait.
+  v_now := clock_timestamp();
 
   select * into v_member
   from public.members
@@ -124,14 +130,14 @@ begin
 
   -- Gate 5: already overdue (the fine-eraser hole — ADR-0002). Overdue is
   -- derived: due_at < now() on an active loan.
-  if v_loan.due_at < now() then
+  if v_loan.due_at < v_now then
     raise exception 'loan_overdue' using errcode = 'P0001';
   end if;
 
   v_previous_due_at := v_loan.due_at;
 
   update public.loans
-  set due_at = now() + make_interval(days => v_type.loan_period_days),
+  set due_at = v_now + make_interval(days => v_type.loan_period_days),
       renew_count = renew_count + 1
   where id = v_loan.id
   returning * into v_loan;
