@@ -465,7 +465,8 @@
         "due": "Due",
         "daysLate": "Days late",
         "projectedFine": "Projected fine",
-        "returnedAt": "Returned"
+        "returnedAt": "Returned",
+        "actions": "Actions"
       },
       "empty": {
         "activeHeadline": "No active loans",
@@ -483,6 +484,24 @@
         "next": "Next page",
         "nav": "Loans pagination",
         "summary": "Showing {{from}}–{{to}} of {{total}}"
+      }
+    },
+    "renew": {
+      "action": "Renew",
+      "actionFor": "Renew {{title}} ({{barcode}})",
+      "working": "Renewing…",
+      "success": "Renewed · due {{due}}",
+      "errors": {
+        "notAuthenticated": "Sign in again to renew.",
+        "profileMissing": "Your staff profile could not be loaded.",
+        "loanNotFound": "That loan is no longer active — it may have been checked in.",
+        "renewalLimitReached": "This loan has reached its renewal limit.",
+        "titleHasWaitingHolds": "This title has waiting holds — the copy must come back.",
+        "memberSuspended": "This member is suspended and cannot renew.",
+        "memberBlocked": "This member is blocked and cannot renew.",
+        "memberFineBlocked": "Outstanding fines block renewal for this member.",
+        "loanOverdue": "This loan is overdue — check it in instead of renewing.",
+        "unexpected": "Renewal failed. Try again in a moment."
       }
     }
   },

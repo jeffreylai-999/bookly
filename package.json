@@ -21,8 +21,9 @@
     "test:sql:checkout": "node scripts/run-checkout-gates-test.mjs",
     "test:sql:checkout-concurrency": "node scripts/run-checkout-concurrency-test.mjs",
     "test:sql:holds": "node scripts/run-holds-gates-test.mjs",
-    "test:sql:holds-lifecycle": "node scripts/run-holds-lifecycle-test.mjs",
     "test:sql:checkin": "node scripts/run-checkin-test.mjs",
+    "test:sql:renew": "node scripts/run-renew-test.mjs",
+    "test:sql:holds-lifecycle": "node scripts/run-holds-lifecycle-test.mjs",
     "test:sql:fines": "node scripts/run-fines-test.mjs"
   },
   "private": true,

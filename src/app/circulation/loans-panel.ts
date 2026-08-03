@@ -1,4 +1,4 @@
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, formatDate } from '@angular/common';
 import { Component, OnInit, computed, inject } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 
@@ -7,6 +7,7 @@ import {
   TableColumn,
   ToastService,
   UiBadge,
+  UiBtn,
   UiCellDef,
   UiEmptyState,
   UiPagination,
@@ -14,6 +15,7 @@ import {
   UiTable,
 } from '../ui';
 import { LoansStore } from './loans.store';
+import { RENEW_ERROR_KEYS } from './circulation.types';
 import type { LoanListItem, LoansTab, OverdueLoan } from './circulation.types';
 
 const EMPTY_KEYS: Record<LoansTab, { headline: string; message: string }> = {
@@ -39,6 +41,7 @@ const EMPTY_KEYS: Record<LoansTab, { headline: string; message: string }> = {
     DatePipe,
     TranslocoPipe,
     UiBadge,
+    UiBtn,
     UiCellDef,
     UiEmptyState,
     UiPagination,
@@ -109,7 +112,7 @@ const EMPTY_KEYS: Record<LoansTab, { headline: string; message: string }> = {
           [rows]="store.loans()"
           [caption]="'circulation.loans.tableCaption' | transloco"
           [rowKey]="rowId"
-          minWidth="720px"
+          minWidth="800px"
         >
           <ng-template uiCell="member" let-row>
             <div>
@@ -131,6 +134,27 @@ const EMPTY_KEYS: Record<LoansTab, { headline: string; message: string }> = {
           </ng-template>
           <ng-template uiCell="returnedAt" let-row>
             {{ row.returned_at | date: 'medium' }}
+          </ng-template>
+          <ng-template uiCell="actions" let-row>
+            <button
+              type="button"
+              uiBtn
+              variant="pill"
+              [disabled]="store.renewingId() !== null"
+              [attr.aria-label]="
+                'circulation.renew.actionFor'
+                  | transloco
+                    : { title: row.copy?.title ?? '', barcode: row.copy?.barcode ?? '' }
+              "
+              (click)="onRenew(row)"
+            >
+              {{
+                (store.renewingId() === row.id
+                  ? 'circulation.renew.working'
+                  : 'circulation.renew.action'
+                ) | transloco
+              }}
+            </button>
           </ng-template>
           <ui-empty-state
             [headline]="emptyKeys().headline | transloco"
@@ -168,34 +192,43 @@ export class LoansPanel implements OnInit {
 
   protected readonly loanColumns = computed<TableColumn<LoanListItem>[]>(() => {
     const returned = this.store.tab() === 'returned';
-    return [
+    const base: TableColumn<LoanListItem>[] = [
       {
         key: 'member',
         header: this.transloco.translate('circulation.loans.columns.member'),
-        width: '28%',
+        width: returned ? '28%' : '26%',
       },
       {
         key: 'title',
         header: this.transloco.translate('circulation.loans.columns.title'),
-        width: '30%',
+        width: returned ? '30%' : '28%',
       },
       {
         key: 'barcode',
         header: this.transloco.translate('circulation.loans.columns.barcode'),
-        width: '16%',
+        width: '15%',
       },
       returned
         ? {
             key: 'returnedAt',
             header: this.transloco.translate('circulation.loans.columns.returnedAt'),
-            width: '26%',
+            width: '27%',
           }
         : {
             key: 'due',
             header: this.transloco.translate('circulation.loans.columns.due'),
-            width: '26%',
+            width: '19%',
           },
     ];
+    // Renew acts on an active loan; the returned tab is history.
+    if (!returned) {
+      base.push({
+        key: 'actions',
+        header: this.transloco.translate('circulation.loans.columns.actions'),
+        width: '12%',
+      });
+    }
+    return base;
   });
 
   protected readonly overdueColumns: TableColumn<OverdueLoan>[] = [
@@ -251,6 +284,21 @@ export class LoansPanel implements OnInit {
   protected async onPageChange(page: number): Promise<void> {
     await this.store.setPage(page);
     this.toastOnError();
+  }
+
+  protected async onRenew(row: LoanListItem): Promise<void> {
+    const result = await this.store.renew(row);
+    if (!result.ok) {
+      this.toast.error(this.transloco.translate(RENEW_ERROR_KEYS[result.error]));
+      return;
+    }
+
+    const dueLabel = formatDate(
+      result.loan.due_at,
+      'mediumDate',
+      this.transloco.getActiveLang() || 'en',
+    );
+    this.toast.show(this.transloco.translate('circulation.renew.success', { due: dueLabel }));
   }
 
   protected emptyKeys(): { headline: string; message: string } {

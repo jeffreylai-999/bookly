@@ -1,7 +1,12 @@
 import { Service, computed, inject, signal } from '@angular/core';
 
 import { CirculationRepository } from './circulation.repository';
-import type { LoanListItem, LoansTab, OverdueLoan } from './circulation.types';
+import type {
+  LoanListItem,
+  LoansTab,
+  OverdueLoan,
+  RenewResult,
+} from './circulation.types';
 
 const PAGE_SIZE = 10;
 
@@ -19,6 +24,8 @@ export class LoansStore {
   private readonly loadingState = signal(false);
   private readonly errorState = signal<string | null>(null);
   private readonly currencyState = signal('USD');
+  /** Loan id with a renew in flight; null when idle. */
+  private readonly renewingIdState = signal<string | null>(null);
 
   readonly tab = this.tabState.asReadonly();
   readonly loans = this.loansState.asReadonly();
@@ -29,6 +36,7 @@ export class LoansStore {
   readonly loading = this.loadingState.asReadonly();
   readonly error = this.errorState.asReadonly();
   readonly currency = this.currencyState.asReadonly();
+  readonly renewingId = this.renewingIdState.asReadonly();
   readonly empty = computed(
     () => !this.loadingState() && !this.errorState() && this.totalState() === 0,
   );
@@ -89,5 +97,20 @@ export class LoansStore {
   async setPage(page: number): Promise<void> {
     this.pageState.set(page);
     await this.load();
+  }
+
+  async renew(loan: LoanListItem): Promise<RenewResult> {
+    if (this.renewingIdState() !== null) return { ok: false, error: 'unexpected' };
+
+    this.renewingIdState.set(loan.id);
+    try {
+      const result = await this.repo.renew(loan.id);
+      // A renewed loan sorts by its new due date; reload rather than patch the
+      // row in place so the active tab's ordering stays honest.
+      if (result.ok) await this.load();
+      return result;
+    } finally {
+      this.renewingIdState.set(null);
+    }
   }
 }

@@ -9,10 +9,12 @@ import type {
   CheckoutCopy,
   CheckoutMember,
   CheckoutResult,
+  Loan,
   LoanListItem,
   OverdueLoan,
+  RenewResult,
 } from './circulation.types';
-import { mapCheckinError, mapCheckoutError } from './circulation.types';
+import { mapCheckinError, mapCheckoutError, mapRenewError } from './circulation.types';
 
 const MEMBER_SELECT =
   '*, member_type:member_types(id, name, loan_period_days, borrow_cap)';
@@ -276,6 +278,18 @@ export class CirculationRepository {
       fines: payload.fines ?? [],
       hold: payload.hold ?? null,
     };
+  }
+
+  async renew(loanId: string): Promise<RenewResult> {
+    const { data, error } = await this.supabase.rpc('renew_loan', {
+      p_loan_id: loanId,
+    });
+
+    if (error) {
+      return { ok: false, error: mapRenewError(error.message) };
+    }
+
+    return { ok: true, loan: data as Loan };
   }
 
   async listLoans(
