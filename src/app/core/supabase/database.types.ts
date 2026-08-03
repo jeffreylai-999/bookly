@@ -726,6 +726,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      promote_waiting_hold: {
+        Args: { p_copy_id: string; p_title_id: string }
+        Returns: string
+      }
+      record_payment: {
+        Args: { p_amount: number; p_fine_id: string; p_method: string }
+        Returns: Json
+      }
       renew_loan: {
         Args: { p_loan_id: string }
         Returns: {
@@ -746,13 +754,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      promote_waiting_hold: {
-        Args: { p_copy_id: string; p_title_id: string }
-        Returns: string
-      record_payment: {
-        Args: { p_amount: number; p_fine_id: string; p_method: string }
-        Returns: Json
       }
       set_copy_status: {
         Args: {
