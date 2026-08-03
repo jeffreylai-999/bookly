@@ -323,7 +323,8 @@
       "searchPlaceholder": "Type a name or card barcode",
       "suggestions": "Matching members",
       "typeRules": "{{type}} · {{days}}-day loans · cap {{cap}}",
-      "clear": "Clear member"
+      "clear": "Clear member",
+      "money": "Balance {{balance}} · projected +{{projected}}"
     },
     "copies": {
       "heading": "Copies",
@@ -508,6 +509,11 @@
       "lost": "Lost"
     },
     "tableCaption": "Member fines",
+    "stats": {
+      "outstanding": "Outstanding balance",
+      "collected": "Collected",
+      "waived": "Waived"
+    },
     "columns": {
       "member": "Member",
       "reason": "Reason",
@@ -515,7 +521,85 @@
       "paid": "Paid",
       "balance": "Balance",
       "status": "Status",
-      "created": "Created"
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "actions": {
+      "pay": "Pay",
+      "waive": "Waive",
+      "details": "Details"
+    },
+    "methods": {
+      "cash": "Cash",
+      "card": "Card",
+      "other": "Other"
+    },
+    "accrual": {
+      "overdue": "{{days}} day(s) late × {{rate}} per day at check-in",
+      "damagedDefault": "Default damaged fee charged",
+      "damagedOverride": "Damaged fee overridden at the desk (default {{feeDefault}})",
+      "lostReplacement": "Title replacement cost",
+      "lostDefault": "Default lost fee (title has no replacement cost)"
+    },
+    "payment": {
+      "heading": "Record payment",
+      "subtitle": "{{member}} · {{balance}} remaining",
+      "amount": "Amount",
+      "amountHint": "Full or partial — up to the remaining balance.",
+      "method": "Method",
+      "cancel": "Cancel",
+      "confirm": "Record payment",
+      "working": "Recording…",
+      "errors": {
+        "amountRequired": "Enter an amount.",
+        "amountInvalid": "Enter an amount greater than zero.",
+        "amountExceeds": "Payment can't exceed the {{balance}} balance — money never flows backward."
+      }
+    },
+    "receipt": {
+      "heading": "Payment recorded",
+      "subtitle": "Receipt confirmation",
+      "paidLabel": "Paid",
+      "methodLabel": "Method",
+      "statusLabel": "Fine status",
+      "remainingLabel": "Remaining balance",
+      "done": "Done"
+    },
+    "waive": {
+      "heading": "Waive fine",
+      "subtitle": "{{member}} · forgives {{forgiven}} — payments already made stand.",
+      "reason": "Reason",
+      "reasonHint": "Required — recorded in the audit log.",
+      "cancel": "Cancel",
+      "confirm": "Waive balance",
+      "working": "Waiving…",
+      "errors": {
+        "reasonRequired": "A reason is required to waive a fine."
+      }
+    },
+    "details": {
+      "heading": "Fine details",
+      "close": "Close",
+      "originHeading": "Origin",
+      "noLoan": "Not tied to a loan.",
+      "due": "Due {{due}}",
+      "returned": "returned {{returned}}",
+      "paymentsHeading": "Payments",
+      "paymentsEmpty": "No payments yet.",
+      "paymentsError": "Couldn't load payments for this fine. Close and try again.",
+      "voidedBadge": "Voided",
+      "voidReason": "Voided: {{reason}}",
+      "void": "Void",
+      "voidReasonLabel": "Void reason",
+      "voidReasonPlaceholder": "Why is this payment being voided?",
+      "voidReasonRequired": "A reason is required to void a payment.",
+      "voidConfirm": "Void payment",
+      "voidCancel": "Cancel"
+    },
+    "toasts": {
+      "paymentRecorded": "Payment recorded.",
+      "waived": "Fine waived.",
+      "voided": "Payment voided."
     },
     "empty": {
       "headline": "No fines yet",
@@ -524,7 +608,22 @@
       "filteredMessage": "Try a different status filter."
     },
     "errors": {
-      "loadFailed": "Couldn't load fines. Check your connection and try again."
+      "loadFailed": "Couldn't load fines. Check your connection and try again.",
+      "notAuthenticated": "You're signed out. Sign in again.",
+      "profileMissing": "Your staff profile couldn't be loaded.",
+      "adminRequired": "Only an admin can do that.",
+      "fineNotFound": "That fine no longer exists. Reload and try again.",
+      "invalidPaymentAmount": "Enter an amount greater than zero.",
+      "paymentMethodRequired": "Pick a payment method.",
+      "fineAlreadyPaid": "That fine is already fully paid.",
+      "fineWaived": "That fine was waived — no payments can be taken on it.",
+      "fineAlreadyWaived": "That fine was already waived.",
+      "paymentExceedsBalance": "Payment is more than the remaining balance.",
+      "waiveReasonRequired": "A reason is required to waive a fine.",
+      "paymentNotFound": "That payment no longer exists. Reload and try again.",
+      "paymentAlreadyVoided": "That payment was already voided.",
+      "voidReasonRequired": "A reason is required to void a payment.",
+      "unexpected": "Something went wrong. Try again."
     },
     "pagination": {
       "prev": "Previous page",

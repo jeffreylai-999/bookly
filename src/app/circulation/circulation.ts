@@ -1,4 +1,4 @@
-import { DatePipe, formatDate } from '@angular/common';
+import { CurrencyPipe, DatePipe, formatDate } from '@angular/common';
 import { Component, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -37,6 +37,7 @@ const STATUS_LABEL_KEYS: Record<MemberStatus, string> = {
   selector: 'app-circulation',
   providers: [CirculationStore],
   imports: [
+    CurrencyPipe,
     DatePipe,
     TranslocoPipe,
     UiBadge,
@@ -130,6 +131,21 @@ const STATUS_LABEL_KEYS: Record<MemberStatus, string> = {
                             }
                     }}
                   </p>
+                  @if (store.money(); as money) {
+                    <p
+                      class="mt-1 text-xs font-semibold"
+                      [class]="money.balance > 0 ? 'text-warning' : 'text-ink-muted'"
+                    >
+                      {{
+                        'circulation.member.money'
+                          | transloco
+                            : {
+                                balance: money.balance | currency: store.currency(),
+                                projected: money.projected | currency: store.currency(),
+                              }
+                      }}
+                    </p>
+                  }
                 </div>
                 <span uiBadge [tone]="memberStatusTone(member.status)">
                   {{ statusLabel(member.status) }}

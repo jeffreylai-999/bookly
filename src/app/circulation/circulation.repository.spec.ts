@@ -543,4 +543,58 @@ describe('CirculationRepository', () => {
     ]);
     expect(result.error).toBeNull();
   });
+
+  it('sums materialized balance and projected fines for the member panel', async () => {
+    const inCalls: [string, unknown][] = [];
+    const client = {
+      from: (table: string) => {
+        const builder =
+          table === 'fines'
+            ? createQueryBuilder(() => ({
+                data: [
+                  { amount: 10, amount_paid: 4 },
+                  { amount: 5, amount_paid: 0 },
+                ],
+                error: null,
+              }))
+            : createQueryBuilder(() => ({
+                data: [{ projected_fine: 0.75 }, { projected_fine: 0.25 }],
+                error: null,
+              }));
+        const originalIn = builder['in'] as (c: string, v: unknown) => unknown;
+        builder['in'] = (column: string, value: unknown) => {
+          inCalls.push([column, value]);
+          return originalIn(column, value);
+        };
+        return builder;
+      },
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.getMemberMoney('m1');
+
+    // Gate sum: materialized outstanding/partial fines only.
+    expect(inCalls).toEqual([['status', ['outstanding', 'partial']]]);
+    expect(result.error).toBeNull();
+    expect(result.row).toEqual({ balance: 11, projected: 1 });
+  });
+
+  it('fails the money read when the fines query fails', async () => {
+    const client = {
+      from: () => createQueryBuilder(() => ({ data: null, error: { message: 'boom' } })),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.getMemberMoney('m1');
+
+    expect(result).toEqual({ row: null, error: 'boom' });
+  });
 });
