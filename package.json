@@ -25,7 +25,8 @@
     "test:sql:checkin": "node scripts/run-checkin-test.mjs",
     "test:sql:renew": "node scripts/run-renew-test.mjs",
     "test:sql:holds-lifecycle": "node scripts/run-holds-lifecycle-test.mjs",
-    "test:sql:fines": "node scripts/run-fines-test.mjs"
+    "test:sql:fines": "node scripts/run-fines-test.mjs",
+    "test:sql:notifications": "node scripts/run-notifications-test.mjs"
   },
   "private": true,
   "packageManager": "pnpm@10.11.0",

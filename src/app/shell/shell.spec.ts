@@ -1,14 +1,12 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, RouterOutlet } from '@angular/router';
-import {
-  provideTranslocoMissingHandler,
-  TranslocoTestingModule,
-} from '@jsverse/transloco';
+import { provideTranslocoMissingHandler, TranslocoTestingModule } from '@jsverse/transloco';
 import axe from 'axe-core';
 import {
   Banknote,
   BarChart3,
+  Bell,
   BookMarked,
   BookOpen,
   Hand,
@@ -22,9 +20,22 @@ import {
 
 import { AuthService } from '../core/auth';
 import { ThrowingMissingKeyHandler } from '../core/i18n';
+import { NotificationService } from '../core/notifications';
 import { ScanService } from '../core/scan';
 import en from '../../../public/i18n/en.json';
 import { AppShell } from './shell';
+
+class NotificationServiceStub {
+  notifications = () => [];
+  unreadCount = () => 0;
+  loading = () => false;
+  error = () => null;
+  init = async () => undefined;
+  reload = async () => undefined;
+  markRead = async () => undefined;
+  markAllRead = async () => undefined;
+  messageFor = () => ({ key: 'notifications.messages.fallback', params: {} });
+}
 
 @Component({
   selector: 'app-outlet-stub',
@@ -51,6 +62,7 @@ const icons = {
   useValue: new LucideIconProvider({
     Banknote,
     BarChart3,
+    Bell,
     BookMarked,
     BookOpen,
     Hand,
@@ -77,6 +89,7 @@ describe('AppShell', () => {
         provideTranslocoMissingHandler(ThrowingMissingKeyHandler),
         { provide: AuthService, useClass: AuthStub },
         { provide: ScanService, useValue: { start: () => undefined, stop: () => undefined } },
+        { provide: NotificationService, useClass: NotificationServiceStub },
         icons,
       ],
     }).compileComponents();
@@ -122,6 +135,7 @@ describe('AppShell', () => {
           },
         },
         { provide: ScanService, useValue: { start: () => undefined, stop: () => undefined } },
+        { provide: NotificationService, useClass: NotificationServiceStub },
         icons,
       ],
     }).compileComponents();
