@@ -577,6 +577,68 @@ describe('CirculationRepository', () => {
     expect(result.rows[0]?.member).toEqual({ id: 'm1', name: 'Ada', card_barcode: 'MBR-1' });
   });
 
+  it("lists a member's active loans, soonest due first", async () => {
+    const fromCalls: string[] = [];
+    const orderCalls: [string, { ascending: boolean }][] = [];
+    const eqCalls: [string, unknown][] = [];
+    const row = {
+      id: 'l1',
+      copy_id: 'c1',
+      member_id: 'm1',
+      checked_out_by: 'p1',
+      checked_out_at: '2026-07-01T00:00:00Z',
+      due_at: '2026-07-22T00:00:00Z',
+      returned_at: null,
+      renew_count: 0,
+      status: 'active',
+      created_at: '2026-07-01T00:00:00Z',
+      copy: { id: 'c1', barcode: 'BK-100', titles: { title: 'Dune', author: 'Herbert' } },
+      member: { id: 'm1', name: 'Ada', card_barcode: 'MBR-1' },
+    };
+    const client = {
+      from: (table: string) => {
+        fromCalls.push(table);
+        const builder = createQueryBuilder(() => ({ data: [row], error: null }));
+        const originalOrder = builder['order'] as (
+          c: string,
+          o: { ascending: boolean },
+        ) => unknown;
+        builder['order'] = (column: string, options: { ascending: boolean }) => {
+          orderCalls.push([column, options]);
+          return originalOrder(column, options);
+        };
+        const originalEq = builder['eq'] as (c: string, v: unknown) => unknown;
+        builder['eq'] = (column: string, value: unknown) => {
+          eqCalls.push([column, value]);
+          return originalEq(column, value);
+        };
+        return builder;
+      },
+      rpc: async () => ({ data: null, error: null }),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.listActiveLoansByMember('m1');
+
+    expect(fromCalls).toEqual(['loans']);
+    expect(eqCalls).toEqual([
+      ['member_id', 'm1'],
+      ['status', 'active'],
+    ]);
+    expect(orderCalls).toEqual([['due_at', { ascending: true }]]);
+    expect(result.error).toBeNull();
+    expect(result.rows[0]?.copy).toEqual({
+      id: 'c1',
+      barcode: 'BK-100',
+      title: 'Dune',
+      author: 'Herbert',
+    });
+  });
+
   it('lists overdue loans from the overdue_loans view, most days late first', async () => {
     const fromCalls: string[] = [];
     const orderCalls: [string, { ascending: boolean }][] = [];

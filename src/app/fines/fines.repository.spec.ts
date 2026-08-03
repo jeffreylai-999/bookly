@@ -37,6 +37,62 @@ function createQueryBuilder(resolve: () => QueryResult | Promise<QueryResult>) {
 }
 
 describe('FinesRepository', () => {
+  it("lists a member's fine history newest-first", async () => {
+    const row = {
+      id: 'f1',
+      member_id: 'm1',
+      loan_id: 'l1',
+      amount: 0.75,
+      amount_paid: 0,
+      reason: 'overdue',
+      status: 'outstanding',
+      accrual_rule_snapshot: { days_late: 3, fine_rate_per_day: 0.25 },
+      created_at: '2026-08-01T10:00:00Z',
+      loan: {
+        id: 'l1',
+        due_at: '2026-07-22T00:00:00Z',
+        returned_at: '2026-08-01T00:00:00Z',
+        copy: { id: 'c1', barcode: 'BK-100', titles: { title: 'Dune', author: 'Herbert' } },
+      },
+    };
+    const fromCalls: string[] = [];
+    const orderCalls: [string, { ascending: boolean }][] = [];
+    const eqCalls: [string, unknown][] = [];
+    const client = {
+      from: (table: string) => {
+        fromCalls.push(table);
+        const builder = createQueryBuilder(() => ({ data: [row], error: null }));
+        const originalOrder = builder['order'] as (
+          c: string,
+          o: { ascending: boolean },
+        ) => unknown;
+        builder['order'] = (column: string, options: { ascending: boolean }) => {
+          orderCalls.push([column, options]);
+          return originalOrder(column, options);
+        };
+        const originalEq = builder['eq'] as (c: string, v: unknown) => unknown;
+        builder['eq'] = (column: string, value: unknown) => {
+          eqCalls.push([column, value]);
+          return originalEq(column, value);
+        };
+        return builder;
+      },
+    };
+
+    TestBed.configureTestingModule({
+      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(FinesRepository);
+    const result = await repo.listByMember('m1');
+
+    expect(fromCalls).toEqual(['fines']);
+    expect(eqCalls).toEqual([['member_id', 'm1']]);
+    expect(orderCalls).toEqual([['created_at', { ascending: false }]]);
+    expect(result.error).toBeNull();
+    expect(result.rows[0]?.loan?.copy?.titles?.title).toBe('Dune');
+  });
+
   it('lists fines newest-first with the member flattened', async () => {
     const row = {
       id: 'f1',

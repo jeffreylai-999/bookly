@@ -292,6 +292,23 @@ export class CirculationRepository {
     return { ok: true, loan: data as Loan };
   }
 
+  /** Current loans for the member-detail page — no pagination, the borrow cap keeps this small. */
+  async listActiveLoansByMember(
+    memberId: string,
+  ): Promise<{ rows: LoanListItem[]; error: string | null }> {
+    const { data, error } = await this.supabase
+      .from('loans')
+      .select(LOAN_LIST_SELECT)
+      .eq('member_id', memberId)
+      .eq('status', 'active')
+      .order('due_at', { ascending: true });
+
+    return {
+      rows: ((data as LoanJoinRow[] | null) ?? []).map(flattenLoan),
+      error: error?.message ?? null,
+    };
+  }
+
   async listLoans(
     status: 'active' | 'returned',
     query: ListQuery,
