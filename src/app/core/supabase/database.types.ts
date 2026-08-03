@@ -726,6 +726,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      promote_waiting_hold: {
+        Args: { p_copy_id: string; p_title_id: string }
+        Returns: string
+      }
+      record_payment: {
+        Args: { p_amount: number; p_fine_id: string; p_method: string }
+        Returns: Json
+      }
       renew_loan: {
         Args: { p_loan_id: string }
         Returns: {
@@ -747,12 +755,62 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      promote_waiting_hold: {
-        Args: { p_copy_id: string; p_title_id: string }
-        Returns: string
-      record_payment: {
-        Args: { p_amount: number; p_fine_id: string; p_method: string }
-        Returns: Json
+      report_dead_stock: {
+        Args: { p_days: number }
+        Returns: {
+          author: string
+          genre: string
+          lendable_copies: number
+          title: string
+          title_id: string
+        }[]
+      }
+      report_fine_collection: {
+        Args: { p_days: number }
+        Returns: {
+          collected: number
+          incurred: number
+          report_date: string
+        }[]
+      }
+      report_genre_breakdown: {
+        Args: { p_days: number }
+        Returns: {
+          checkout_count: number
+          genre: string
+        }[]
+      }
+      report_high_demand: {
+        Args: { p_days: number }
+        Returns: {
+          author: string
+          checkout_count: number
+          title: string
+          title_id: string
+          waiting_holds: number
+        }[]
+      }
+      report_new_member_growth: {
+        Args: { p_days: number }
+        Returns: {
+          member_count: number
+          report_date: string
+        }[]
+      }
+      report_overdue_aging: {
+        Args: never
+        Returns: {
+          bucket: string
+          bucket_order: number
+          loan_count: number
+        }[]
+      }
+      report_peak_hours: {
+        Args: { p_days: number }
+        Returns: {
+          checkout_count: number
+          hour_of_day: number
+        }[]
       }
       set_copy_status: {
         Args: {
