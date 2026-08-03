@@ -299,7 +299,8 @@
       "hold": {
         "place": "Hold placed",
         "cancel": "Hold cancelled",
-        "mark_ready": "Hold marked ready"
+        "mark_ready": "Hold marked ready",
+        "expire": "Hold expired"
       },
       "fine": {
         "waive": "Fine waived"
@@ -406,6 +407,10 @@
         "damagedAmount": "Damage charge",
         "damagedAmountHint": "Defaults to the library damage fee; adjust for the actual damage."
       },
+      "fillHold": {
+        "label": "Fill hold",
+        "hint": "{{count}} waiting — reserve this copy for the head of the queue."
+      },
       "confirm": {
         "action": "Check in",
         "working": "Checking in…"
@@ -413,6 +418,8 @@
       "result": {
         "heading": "Checked in",
         "copyAvailable": "Copy is back on the shelf.",
+        "copyOnHoldShelf": "Copy is on the hold shelf.",
+        "holdFilled": "Held for {{name}} until {{date}}.",
         "copyDamaged": "Copy is marked damaged.",
         "copyLost": "Copy is marked lost.",
         "daysLate": "{{days}} days late",
@@ -439,6 +446,7 @@
         "invalidCondition": "Pick a condition before confirming.",
         "damagedAmountUnexpected": "A damage charge only applies to a damaged return.",
         "invalidDamagedAmount": "Enter a damage charge of zero or more.",
+        "fillHoldRequiresOk": "Only an ok return can fill a hold.",
         "unexpected": "Check-in failed. Try again in a moment."
       }
     },
@@ -621,6 +629,79 @@
       "prev": "Previous page",
       "next": "Next page",
       "nav": "Fines pagination",
+      "summary": "Showing {{from}}–{{to}} of {{total}}"
+    }
+  },
+  "holds": {
+    "title": "Holds",
+    "subtitle": "{{count}} holds",
+    "statusFilter": "Filter by status",
+    "filter": {
+      "all": "All statuses"
+    },
+    "status": {
+      "waiting": "Waiting",
+      "ready": "Ready",
+      "fulfilled": "Fulfilled",
+      "cancelled": "Cancelled",
+      "expired": "Expired"
+    },
+    "tableCaption": "Hold queue",
+    "columns": {
+      "member": "Member",
+      "title": "Title",
+      "position": "Queue",
+      "copy": "Copy",
+      "expires": "Expires",
+      "age": "Age",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "ageDays": "{{days}}d",
+    "expiresTooltip": "Shelf pickup deadline",
+    "expiredTooltip": "Past its shelf expiry — a checkout will expire it",
+    "actions": {
+      "markReady": "Mark ready",
+      "cancel": "Cancel",
+      "clearFilters": "Clear filters"
+    },
+    "markReadyDialog": {
+      "heading": "Mark ready",
+      "subtitle": "Pull an available copy of “{{title}}” for {{name}}, the head of the queue.",
+      "hint": "The queue head is always served — the copy you scan goes to them.",
+      "scanPlaceholder": "Scan or type the copy barcode",
+      "scanLabel": "Copy barcode",
+      "confirm": "Mark ready",
+      "working": "Marking ready…",
+      "cancel": "Cancel",
+      "close": "Close dialog"
+    },
+    "empty": {
+      "headline": "No holds yet",
+      "message": "Holds placed at the desk queue here.",
+      "filteredHeadline": "No holds match",
+      "filteredMessage": "Try a different status filter."
+    },
+    "toasts": {
+      "markedReady": "Hold marked ready for {{name}}.",
+      "cancelled": "Hold cancelled."
+    },
+    "errors": {
+      "loadFailed": "Couldn't load holds. Try again.",
+      "notAuthenticated": "Sign in again to manage holds.",
+      "profileMissing": "Your staff profile could not be loaded.",
+      "titleNotFound": "That title could not be found.",
+      "copyNotFound": "No copy of this title matches that barcode.",
+      "copyNotAvailable": "That copy is not available to pull.",
+      "noWaitingHolds": "No waiting holds remain for this title.",
+      "holdNotFound": "That hold could not be found.",
+      "holdNotActive": "That hold is no longer active.",
+      "unexpected": "Something went wrong. Try again."
+    },
+    "pagination": {
+      "prev": "Previous page",
+      "next": "Next page",
+      "nav": "Holds pagination",
       "summary": "Showing {{from}}–{{to}} of {{total}}"
     }
   },

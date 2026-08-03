@@ -106,6 +106,7 @@ export type CheckinError =
   | 'invalid_condition'
   | 'damaged_amount_unexpected'
   | 'invalid_damaged_amount'
+  | 'fill_hold_requires_ok'
   | 'unexpected';
 
 export const CHECKIN_ERROR_KEYS: Record<CheckinError, string> = {
@@ -116,6 +117,7 @@ export const CHECKIN_ERROR_KEYS: Record<CheckinError, string> = {
   invalid_condition: 'circulation.checkin.errors.invalidCondition',
   damaged_amount_unexpected: 'circulation.checkin.errors.damagedAmountUnexpected',
   invalid_damaged_amount: 'circulation.checkin.errors.invalidDamagedAmount',
+  fill_hold_requires_ok: 'circulation.checkin.errors.fillHoldRequiresOk',
   unexpected: 'circulation.checkin.errors.unexpected',
 };
 
@@ -129,6 +131,7 @@ export function mapCheckinError(message: string | undefined): CheckinError {
     'invalid_condition',
     'damaged_amount_unexpected',
     'invalid_damaged_amount',
+    'fill_hold_requires_ok',
   ];
   for (const code of codes) {
     if (message.includes(code)) return code;
@@ -160,6 +163,15 @@ export type CheckinFine = {
   created_at: string;
 };
 
+/** The hold a fill-hold check-in readied onto the returned copy. */
+export type CheckinFilledHold = {
+  id: string;
+  member_id: string;
+  member_name: string;
+  copy_barcode: string;
+  expires_at: string;
+};
+
 export type CheckinSuccess = {
   ok: true;
   loan: Loan;
@@ -167,6 +179,8 @@ export type CheckinSuccess = {
   condition: CheckinCondition;
   daysLate: number | null;
   fines: CheckinFine[];
+  /** Set only when fill-hold promoted the queue head onto this copy. */
+  hold: CheckinFilledHold | null;
 };
 
 export type CheckinResult = CheckinSuccess | { ok: false; error: CheckinError };
@@ -180,6 +194,7 @@ export type CheckinRpcPayload = {
   condition: CheckinCondition;
   days_late: number | null;
   fines: CheckinFine[];
+  hold: CheckinFilledHold | null;
 };
 
 // ---------------------------------------------------------------------------
