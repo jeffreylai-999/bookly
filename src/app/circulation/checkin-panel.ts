@@ -126,8 +126,22 @@ const RESULT_STATUS_KEYS: Record<CheckinCondition, string> = {
             >
               <p class="text-sm font-bold text-success">
                 {{ 'circulation.checkin.result.heading' | transloco }} ·
-                {{ RESULT_STATUS_KEYS[result.condition] | transloco }}
+                {{
+                  (result.hold
+                    ? 'circulation.checkin.result.copyOnHoldShelf'
+                    : RESULT_STATUS_KEYS[result.condition]
+                  ) | transloco
+                }}
               </p>
+              @if (result.hold; as hold) {
+                <p class="mt-1 text-xs text-ink-muted">
+                  {{
+                    'circulation.checkin.result.holdFilled'
+                      | transloco
+                        : { name: hold.member_name, date: hold.expires_at | date: 'mediumDate' }
+                  }}
+                </p>
+              }
               @if (result.daysLate !== null) {
                 <p class="mt-1 text-xs text-ink-muted">
                   {{ 'circulation.checkin.result.daysLate' | transloco: { days: result.daysLate } }}
@@ -182,6 +196,30 @@ const RESULT_STATUS_KEYS: Record<CheckinCondition, string> = {
               [groupLabel]="'circulation.checkin.condition.label' | transloco"
             />
             <p class="mt-2 text-xs text-ink-muted">{{ conditionNote() }}</p>
+
+            @if (store.condition() === 'ok' && store.waitingHolds() > 0) {
+              <label
+                class="mt-4 flex cursor-pointer items-start gap-3 rounded-[10px] border border-line bg-canvas px-4 py-3"
+              >
+                <input
+                  type="checkbox"
+                  class="mt-0.5 size-4 shrink-0 accent-brand focus-ring"
+                  [checked]="store.fillHold()"
+                  (change)="onFillHold($event)"
+                />
+                <span>
+                  <span class="block text-sm font-semibold text-ink-heading">
+                    {{ 'circulation.checkin.fillHold.label' | transloco }}
+                  </span>
+                  <span class="mt-0.5 block text-xs text-ink-muted">
+                    {{
+                      'circulation.checkin.fillHold.hint'
+                        | transloco: { count: store.waitingHolds() }
+                    }}
+                  </span>
+                </span>
+              </label>
+            }
 
             @if (store.condition() === 'damaged') {
               <ui-field
@@ -301,6 +339,10 @@ export class CheckinPanel {
 
   protected onDamagedAmount(event: Event): void {
     this.store.setDamagedAmount((event.target as HTMLInputElement).value);
+  }
+
+  protected onFillHold(event: Event): void {
+    this.store.setFillHold((event.target as HTMLInputElement).checked);
   }
 
   protected clear(): void {

@@ -22,6 +22,9 @@ export class CheckinStore {
   private readonly settingsState = signal<DeskSettings | null>(null);
   private readonly busyState = signal(false);
   private readonly resultState = signal<CheckinSuccess | null>(null);
+  /** Waiting holds on the scanned copy's title — the queue a fill would serve. */
+  private readonly waitingHoldsState = signal(0);
+  private readonly fillHoldState = signal(false);
 
   readonly candidate = this.candidateState.asReadonly();
   readonly condition = this.conditionState.asReadonly();
@@ -29,6 +32,8 @@ export class CheckinStore {
   readonly settings = this.settingsState.asReadonly();
   readonly busy = this.busyState.asReadonly();
   readonly result = this.resultState.asReadonly();
+  readonly waitingHolds = this.waitingHoldsState.asReadonly();
+  readonly fillHold = this.fillHoldState.asReadonly();
 
   readonly projection = computed(() => this.candidateState()?.projection ?? null);
 
@@ -69,7 +74,13 @@ export class CheckinStore {
       const projection = await this.repo.getOverdueProjection(row.loan.id);
       if (projection.error) return { error: 'lookup_failed' };
 
+      // Soft dependency, like settings: if the queue count fails, the fill-hold
+      // choice just stays hidden rather than blocking the check-in.
+      const waiting = await this.repo.countWaitingHolds(row.copy.title_id);
+
       this.candidateState.set({ ...row, projection: projection.row });
+      this.waitingHoldsState.set(waiting.error ? 0 : waiting.count);
+      this.fillHoldState.set(!waiting.error && waiting.count > 0);
       this.conditionState.set('ok');
       // Re-prefill per scan so a previous override never leaks into the next check-in.
       this.damagedAmountState.set(
@@ -85,6 +96,10 @@ export class CheckinStore {
 
   setCondition(condition: CheckinCondition): void {
     this.conditionState.set(condition);
+  }
+
+  setFillHold(fillHold: boolean): void {
+    this.fillHoldState.set(fillHold);
   }
 
   setDamagedAmount(value: string): void {
@@ -114,11 +129,14 @@ export class CheckinStore {
         candidate.copy.barcode,
         condition,
         damagedAmount,
+        condition === 'ok' && this.fillHoldState() && this.waitingHoldsState() > 0,
       );
       if (!result.ok) return result;
 
       this.candidateState.set(null);
       this.conditionState.set('ok');
+      this.waitingHoldsState.set(0);
+      this.fillHoldState.set(false);
       this.resultState.set(result);
       return result;
     } finally {
@@ -131,5 +149,7 @@ export class CheckinStore {
     this.conditionState.set('ok');
     this.resultState.set(null);
     this.busyState.set(false);
+    this.waitingHoldsState.set(0);
+    this.fillHoldState.set(false);
   }
 }
