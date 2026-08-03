@@ -52,7 +52,10 @@ const STATUS_LABEL_KEYS: Record<MemberStatus, string> = {
   ],
   template: `
     <div class="flex flex-col gap-6">
-      <a routerLink="/members" class="inline-flex w-fit items-center gap-1.5 text-[13px] font-semibold text-brand-dark hover:underline focus-ring rounded">
+      <a
+        routerLink="/members"
+        class="inline-flex w-fit items-center gap-1.5 text-[13px] font-semibold text-brand-dark hover:underline focus-ring rounded"
+      >
         {{ 'members.detail.back' | transloco }}
       </a>
 
@@ -259,7 +262,9 @@ const STATUS_LABEL_KEYS: Record<MemberStatus, string> = {
               </ng-template>
               <ng-template uiCell="expires" let-row>
                 @if (row.expires_at) {
-                  <span class="tabular-nums text-ink">{{ row.expires_at | date: 'mediumDate' }}</span>
+                  <span class="tabular-nums text-ink">{{
+                    row.expires_at | date: 'mediumDate'
+                  }}</span>
                 } @else {
                   <span class="text-ink-muted">—</span>
                 }

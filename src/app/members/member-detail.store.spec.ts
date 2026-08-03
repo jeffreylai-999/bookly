@@ -80,12 +80,14 @@ function fineRow(overrides: Partial<FineListItem> = {}): FineListItem {
   };
 }
 
-function setup(overrides: {
-  members?: Record<string, unknown>;
-  circulation?: Record<string, unknown>;
-  holds?: Record<string, unknown>;
-  fines?: Record<string, unknown>;
-} = {}) {
+function setup(
+  overrides: {
+    members?: Record<string, unknown>;
+    circulation?: Record<string, unknown>;
+    holds?: Record<string, unknown>;
+    fines?: Record<string, unknown>;
+  } = {},
+) {
   TestBed.configureTestingModule({
     providers: [
       MemberDetailStore,
@@ -93,7 +95,9 @@ function setup(overrides: {
         provide: MembersRepository,
         useValue: {
           getById: vi.fn().mockResolvedValue({ row: memberRow(), error: null }),
-          setStatus: vi.fn().mockResolvedValue({ row: memberRow({ status: 'suspended' }), error: null }),
+          setStatus: vi
+            .fn()
+            .mockResolvedValue({ row: memberRow({ status: 'suspended' }), error: null }),
           ...overrides.members,
         },
       },
@@ -101,8 +105,12 @@ function setup(overrides: {
         provide: CirculationRepository,
         useValue: {
           listActiveLoansByMember: vi.fn().mockResolvedValue({ rows: [], error: null }),
-          getMemberMoney: vi.fn().mockResolvedValue({ row: { balance: 0, projected: 0 }, error: null }),
-          getSettings: vi.fn().mockResolvedValue({ row: { currency: 'USD', damaged_fee_default: 5 }, error: null }),
+          getMemberMoney: vi
+            .fn()
+            .mockResolvedValue({ row: { balance: 0, projected: 0 }, error: null }),
+          getSettings: vi
+            .fn()
+            .mockResolvedValue({ row: { currency: 'USD', damaged_fee_default: 5 }, error: null }),
           renew: vi.fn().mockResolvedValue({ ok: true, loan: loanRow() }),
           ...overrides.circulation,
         },
@@ -154,7 +162,9 @@ describe('MemberDetailStore', () => {
   });
 
   it('flags a missing member without treating it as a load error', async () => {
-    const store = setup({ members: { getById: vi.fn().mockResolvedValue({ row: null, error: null }) } });
+    const store = setup({
+      members: { getById: vi.fn().mockResolvedValue({ row: null, error: null }) },
+    });
 
     await store.init('missing');
 
@@ -194,7 +204,9 @@ describe('MemberDetailStore', () => {
       .fn()
       .mockResolvedValueOnce({ row: memberRow(), error: null })
       .mockResolvedValueOnce({ row: memberRow({ status: 'suspended' }), error: null });
-    const setStatus = vi.fn().mockResolvedValue({ row: memberRow({ status: 'suspended' }), error: null });
+    const setStatus = vi
+      .fn()
+      .mockResolvedValue({ row: memberRow({ status: 'suspended' }), error: null });
     const store = setup({ members: { getById, setStatus } });
     await store.init('m1');
 
@@ -211,7 +223,9 @@ describe('MemberDetailStore', () => {
       .fn()
       .mockResolvedValueOnce({ rows: [loanRow()], error: null })
       .mockResolvedValueOnce({ rows: [renewedLoan], error: null });
-    const getMemberMoney = vi.fn().mockResolvedValue({ row: { balance: 0, projected: 0 }, error: null });
+    const getMemberMoney = vi
+      .fn()
+      .mockResolvedValue({ row: { balance: 0, projected: 0 }, error: null });
     const renew = vi.fn().mockResolvedValue({ ok: true, loan: renewedLoan });
     const store = setup({
       circulation: { listActiveLoansByMember, getMemberMoney, renew },
@@ -229,9 +243,7 @@ describe('MemberDetailStore', () => {
   });
 
   it('does not reload after a rejected renewal', async () => {
-    const listActiveLoansByMember = vi
-      .fn()
-      .mockResolvedValue({ rows: [loanRow()], error: null });
+    const listActiveLoansByMember = vi.fn().mockResolvedValue({ rows: [loanRow()], error: null });
     const renew = vi.fn().mockResolvedValue({ ok: false, error: 'loan_overdue' });
     const store = setup({ circulation: { listActiveLoansByMember, renew } });
     await store.init('m1');

@@ -75,10 +75,7 @@ const fine: FineListItem = {
 };
 
 describe('MemberDetail', () => {
-  async function setup(
-    storeOverrides: Record<string, unknown> = {},
-    isAdmin = false,
-  ) {
+  async function setup(storeOverrides: Record<string, unknown> = {}, isAdmin = false) {
     const memberSig = signal<MemberListItem | null>(member);
     const memberLoadingSig = signal(false);
     const memberErrorSig = signal<string | null>(null);
@@ -121,7 +118,9 @@ describe('MemberDetail', () => {
       currency: signal('USD').asReadonly(),
       init: vi.fn().mockResolvedValue(undefined),
       setMemberStatus: vi.fn().mockResolvedValue({ error: null }),
-      renew: vi.fn().mockResolvedValue({ ok: true, loan: { ...loan, due_at: '2026-08-12T00:00:00Z' } }),
+      renew: vi
+        .fn()
+        .mockResolvedValue({ ok: true, loan: { ...loan, due_at: '2026-08-12T00:00:00Z' } }),
       ...storeOverrides,
       _memberSig: memberSig,
       _notFoundSig: notFoundSig,
