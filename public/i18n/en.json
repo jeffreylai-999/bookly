@@ -274,7 +274,9 @@
       "loan": "Loan",
       "hold": "Hold",
       "fine": "Fine",
-      "payment": "Payment"
+      "payment": "Payment",
+      "member_type": "Member type",
+      "app_settings": "App settings"
     },
     "actionCodes": {
       "member": {
@@ -308,6 +310,14 @@
       "payment": {
         "record": "Payment recorded",
         "void": "Payment voided"
+      },
+      "member_type": {
+        "create": "Member type created",
+        "update": "Member type updated",
+        "delete": "Member type deleted"
+      },
+      "settings": {
+        "update": "Settings updated"
       }
     }
   },
@@ -726,5 +736,105 @@
   },
   "scan": {
     "unknownBarcode": "Unrecognized barcode. Expected an MBR- card or BK- copy."
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Lending rules and system-wide defaults. Changes apply to the next desk action.",
+    "loading": "Loading settings",
+    "errors": {
+      "loadFailed": "Couldn't load settings. Check your connection and try again.",
+      "saveFailed": "Could not save. Try again.",
+      "nameTaken": "A member type with that name already exists.",
+      "typeInUse": "That member type still has members — reassign them before deleting it.",
+      "auditFailed": "Saved, but the audit entry could not be written"
+    },
+    "memberTypes": {
+      "heading": "Member types",
+      "subtitle": "Per-type lending rules: loan length, renewals, borrow cap, fine rate, hold shelf time.",
+      "add": "Add type",
+      "edit": "Edit",
+      "delete": "Delete",
+      "empty": "No member types yet. Add one before members can be registered.",
+      "tableCaption": "Member types and their lending rules",
+      "days": "{{count}} days",
+      "columns": {
+        "name": "Name",
+        "loanPeriod": "Loan period",
+        "renewals": "Renewals",
+        "borrowCap": "Borrow cap",
+        "fineRate": "Fine per day",
+        "holdExpiry": "Hold expiry",
+        "actions": "Actions"
+      },
+      "form": {
+        "addHeading": "Add member type",
+        "editHeading": "Edit member type",
+        "subtitle": "Rules apply from the next checkout, renewal, or hold shelf assignment.",
+        "close": "Close dialog",
+        "name": "Type name",
+        "loanPeriodDays": "Loan period (days)",
+        "renewalLimit": "Renewal limit",
+        "borrowCap": "Borrow cap",
+        "fineRatePerDay": "Fine per day",
+        "holdExpiryDays": "Hold expiry (days)",
+        "cancel": "Cancel",
+        "create": "Create type",
+        "save": "Save changes",
+        "saving": "Saving…",
+        "errors": {
+          "nameRequired": "Name is required",
+          "loanPeriodDays": "Loan period must be at least 1 day",
+          "renewalLimit": "Renewal limit can't be negative",
+          "borrowCap": "Borrow cap must be at least 1",
+          "fineRatePerDay": "Fine rate can't be negative",
+          "holdExpiryDays": "Hold expiry must be at least 1 day"
+        }
+      },
+      "deleteDialog": {
+        "heading": "Delete member type",
+        "message": "Delete {{name}}? This only works while no members use the type.",
+        "confirm": "Delete type",
+        "cancel": "Cancel"
+      },
+      "toasts": {
+        "created": "Member type added",
+        "updated": "Member type updated",
+        "deleted": "Member type deleted"
+      }
+    },
+    "app": {
+      "heading": "App settings",
+      "subtitle": "System-wide rules read by every desk flow.",
+      "currency": "Currency",
+      "currencyHint": "ISO 4217 code, for example USD.",
+      "timezone": "Timezone",
+      "timezoneHint": "IANA name, for example America/New_York. Due dates and reports bucket in this zone.",
+      "defaultLocale": "Default locale",
+      "fineBlockThreshold": "Fine block threshold",
+      "fineBlockThresholdHint": "An outstanding balance at or above this blocks checkout.",
+      "damagedFeeDefault": "Damaged fee default",
+      "lostFeeDefault": "Lost fee default",
+      "lostFeeDefaultHint": "Charged when the title has no replacement cost.",
+      "notifications": "Notification triggers",
+      "notifyOnHoldReady": "Hold ready for pickup",
+      "notifyOnOverdue": "Loan overdue (daily job)",
+      "notifyOnPayment": "Payment recorded",
+      "defaultReportRange": "Default report range",
+      "locales": {
+        "en": "English"
+      },
+      "save": "Save settings",
+      "saving": "Saving…",
+      "errors": {
+        "currencyRequired": "Currency is required",
+        "currencyPattern": "Use a 3-letter ISO code, for example USD",
+        "timezoneRequired": "Timezone is required",
+        "timezoneInvalid": "Enter a valid IANA timezone, for example America/New_York",
+        "amountInvalid": "Enter an amount of 0 or more"
+      },
+      "toasts": {
+        "saved": "Settings saved"
+      }
+    }
   }
 }
