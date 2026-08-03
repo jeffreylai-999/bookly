@@ -57,6 +57,7 @@ const success: CheckinSuccess = {
   condition: 'ok',
   daysLate: 3,
   fines: [],
+  hold: null,
 };
 
 function setup(repoOverrides: Record<string, unknown>) {
@@ -72,6 +73,7 @@ function setup(repoOverrides: Record<string, unknown>) {
             row: { currency: 'USD', damaged_fee_default: 10 },
             error: null,
           }),
+          countWaitingHolds: vi.fn().mockResolvedValue({ count: 0, error: null }),
           checkin: vi.fn(),
           ...repoOverrides,
         },
@@ -115,7 +117,7 @@ describe('CheckinStore', () => {
     // The edit flag resets too: an untouched prefill is not an override.
     store.setCondition('damaged');
     await store.confirm();
-    expect(checkin).toHaveBeenCalledWith('BK-100', 'damaged', undefined);
+    expect(checkin).toHaveBeenCalledWith('BK-100', 'damaged', undefined, false);
   });
 
   it('sends no damaged amount when the prefill is untouched, so the RPC applies the live default', async () => {
@@ -129,7 +131,7 @@ describe('CheckinStore', () => {
 
     const result = await store.confirm();
 
-    expect(checkin).toHaveBeenCalledWith('BK-100', 'damaged', undefined);
+    expect(checkin).toHaveBeenCalledWith('BK-100', 'damaged', undefined, false);
     expect(result.ok).toBe(true);
   });
 
@@ -207,7 +209,7 @@ describe('CheckinStore', () => {
 
     const result = await store.confirm();
 
-    expect(checkin).toHaveBeenCalledWith('BK-100', 'damaged', 7.5);
+    expect(checkin).toHaveBeenCalledWith('BK-100', 'damaged', 7.5, false);
     expect(result.ok).toBe(true);
     expect(store.candidate()).toBeNull();
     expect(store.result()?.ok).toBe(true);
@@ -224,8 +226,65 @@ describe('CheckinStore', () => {
 
     const result = await store.confirm();
 
-    expect(checkin).toHaveBeenCalledWith('BK-100', 'ok', undefined);
+    expect(checkin).toHaveBeenCalledWith('BK-100', 'ok', undefined, false);
     expect(result.ok).toBe(true);
+  });
+
+  it('defaults fill-hold on when the title has a waiting queue', async () => {
+    const store = setup({
+      findActiveLoanByBarcode: vi.fn().mockResolvedValue({ row: lookup, error: null }),
+      countWaitingHolds: vi.fn().mockResolvedValue({ count: 2, error: null }),
+    });
+
+    await store.selectCopyByBarcode('BK-100');
+
+    expect(store.waitingHolds()).toBe(2);
+    expect(store.fillHold()).toBe(true);
+  });
+
+  it('hides fill-hold when the queue count fails', async () => {
+    const store = setup({
+      findActiveLoanByBarcode: vi.fn().mockResolvedValue({ row: lookup, error: null }),
+      countWaitingHolds: vi.fn().mockResolvedValue({ count: 0, error: 'boom' }),
+    });
+
+    const result = await store.selectCopyByBarcode('BK-100');
+
+    expect(result.error).toBeNull();
+    expect(store.waitingHolds()).toBe(0);
+    expect(store.fillHold()).toBe(false);
+  });
+
+  it('confirms an ok fill-hold check-in and clears the queue state', async () => {
+    const checkin = vi.fn().mockResolvedValue(success);
+    const store = setup({
+      findActiveLoanByBarcode: vi.fn().mockResolvedValue({ row: lookup, error: null }),
+      countWaitingHolds: vi.fn().mockResolvedValue({ count: 1, error: null }),
+      checkin,
+    });
+    await store.selectCopyByBarcode('BK-100');
+
+    const result = await store.confirm();
+
+    expect(checkin).toHaveBeenCalledWith('BK-100', 'ok', undefined, true);
+    expect(result.ok).toBe(true);
+    expect(store.waitingHolds()).toBe(0);
+    expect(store.fillHold()).toBe(false);
+  });
+
+  it('never sends fill-hold for a damaged return', async () => {
+    const checkin = vi.fn().mockResolvedValue(success);
+    const store = setup({
+      findActiveLoanByBarcode: vi.fn().mockResolvedValue({ row: lookup, error: null }),
+      countWaitingHolds: vi.fn().mockResolvedValue({ count: 3, error: null }),
+      checkin,
+    });
+    await store.selectCopyByBarcode('BK-100');
+    store.setCondition('damaged');
+
+    await store.confirm();
+
+    expect(checkin).toHaveBeenCalledWith('BK-100', 'damaged', undefined, false);
   });
 
   it('passes typed RPC errors through and keeps the candidate', async () => {

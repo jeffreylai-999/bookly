@@ -106,6 +106,7 @@ export type CheckinError =
   | 'invalid_condition'
   | 'damaged_amount_unexpected'
   | 'invalid_damaged_amount'
+  | 'fill_hold_requires_ok'
   | 'unexpected';
 
 export const CHECKIN_ERROR_KEYS: Record<CheckinError, string> = {
@@ -116,6 +117,7 @@ export const CHECKIN_ERROR_KEYS: Record<CheckinError, string> = {
   invalid_condition: 'circulation.checkin.errors.invalidCondition',
   damaged_amount_unexpected: 'circulation.checkin.errors.damagedAmountUnexpected',
   invalid_damaged_amount: 'circulation.checkin.errors.invalidDamagedAmount',
+  fill_hold_requires_ok: 'circulation.checkin.errors.fillHoldRequiresOk',
   unexpected: 'circulation.checkin.errors.unexpected',
 };
 
@@ -129,6 +131,7 @@ export function mapCheckinError(message: string | undefined): CheckinError {
     'invalid_condition',
     'damaged_amount_unexpected',
     'invalid_damaged_amount',
+    'fill_hold_requires_ok',
   ];
   for (const code of codes) {
     if (message.includes(code)) return code;
@@ -160,6 +163,15 @@ export type CheckinFine = {
   created_at: string;
 };
 
+/** The hold a fill-hold check-in readied onto the returned copy. */
+export type CheckinFilledHold = {
+  id: string;
+  member_id: string;
+  member_name: string;
+  copy_barcode: string;
+  expires_at: string;
+};
+
 export type CheckinSuccess = {
   ok: true;
   loan: Loan;
@@ -167,6 +179,8 @@ export type CheckinSuccess = {
   condition: CheckinCondition;
   daysLate: number | null;
   fines: CheckinFine[];
+  /** Set only when fill-hold promoted the queue head onto this copy. */
+  hold: CheckinFilledHold | null;
 };
 
 export type CheckinResult = CheckinSuccess | { ok: false; error: CheckinError };
@@ -180,7 +194,58 @@ export type CheckinRpcPayload = {
   condition: CheckinCondition;
   days_late: number | null;
   fines: CheckinFine[];
+  hold: CheckinFilledHold | null;
 };
+
+// ---------------------------------------------------------------------------
+// Renew
+// ---------------------------------------------------------------------------
+
+export type RenewError =
+  | 'not_authenticated'
+  | 'profile_missing'
+  | 'loan_not_found'
+  | 'renewal_limit_reached'
+  | 'title_has_waiting_holds'
+  | 'member_suspended'
+  | 'member_blocked'
+  | 'member_fine_blocked'
+  | 'loan_overdue'
+  | 'unexpected';
+
+export const RENEW_ERROR_KEYS: Record<RenewError, string> = {
+  not_authenticated: 'circulation.renew.errors.notAuthenticated',
+  profile_missing: 'circulation.renew.errors.profileMissing',
+  loan_not_found: 'circulation.renew.errors.loanNotFound',
+  renewal_limit_reached: 'circulation.renew.errors.renewalLimitReached',
+  title_has_waiting_holds: 'circulation.renew.errors.titleHasWaitingHolds',
+  member_suspended: 'circulation.renew.errors.memberSuspended',
+  member_blocked: 'circulation.renew.errors.memberBlocked',
+  member_fine_blocked: 'circulation.renew.errors.memberFineBlocked',
+  loan_overdue: 'circulation.renew.errors.loanOverdue',
+  unexpected: 'circulation.renew.errors.unexpected',
+};
+
+export function mapRenewError(message: string | undefined): RenewError {
+  if (!message) return 'unexpected';
+  const codes: RenewError[] = [
+    'not_authenticated',
+    'profile_missing',
+    'loan_not_found',
+    'renewal_limit_reached',
+    'title_has_waiting_holds',
+    'member_suspended',
+    'member_blocked',
+    'member_fine_blocked',
+    'loan_overdue',
+  ];
+  for (const code of codes) {
+    if (message.includes(code)) return code;
+  }
+  return 'unexpected';
+}
+
+export type RenewResult = { ok: true; loan: Loan } | { ok: false; error: RenewError };
 
 // ---------------------------------------------------------------------------
 // Monitoring tabs (active / overdue / returned)

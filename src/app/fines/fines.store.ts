@@ -1,7 +1,16 @@
 import { Service, computed, inject, signal } from '@angular/core';
 
 import { FinesRepository } from './fines.repository';
-import type { FineListItem, FineStatusFilter } from './fines.types';
+import type {
+  FineListItem,
+  FineReceipt,
+  FineStatusFilter,
+  FineSummary,
+  Payment,
+  PaymentResult,
+  VoidResult,
+  WaiveResult,
+} from './fines.types';
 
 const PAGE_SIZE = 10;
 
@@ -18,6 +27,14 @@ export class FinesStore {
   private readonly loadingState = signal(false);
   private readonly errorState = signal<string | null>(null);
   private readonly currencyState = signal('USD');
+  private readonly summaryState = signal<FineSummary | null>(null);
+  private readonly summaryErrorState = signal<string | null>(null);
+  private readonly selectedFineState = signal<FineListItem | null>(null);
+  private readonly paymentsState = signal<Payment[]>([]);
+  private readonly paymentsLoadingState = signal(false);
+  private readonly paymentsErrorState = signal<string | null>(null);
+  private readonly busyState = signal(false);
+  private readonly receiptState = signal<FineReceipt | null>(null);
 
   readonly rows = this.rowsState.asReadonly();
   readonly total = this.totalState.asReadonly();
@@ -27,6 +44,14 @@ export class FinesStore {
   readonly loading = this.loadingState.asReadonly();
   readonly error = this.errorState.asReadonly();
   readonly currency = this.currencyState.asReadonly();
+  readonly summary = this.summaryState.asReadonly();
+  readonly summaryError = this.summaryErrorState.asReadonly();
+  readonly selectedFine = this.selectedFineState.asReadonly();
+  readonly payments = this.paymentsState.asReadonly();
+  readonly paymentsLoading = this.paymentsLoadingState.asReadonly();
+  readonly paymentsError = this.paymentsErrorState.asReadonly();
+  readonly busy = this.busyState.asReadonly();
+  readonly receipt = this.receiptState.asReadonly();
   readonly empty = computed(
     () => !this.loadingState() && !this.errorState() && this.totalState() === 0,
   );
@@ -37,6 +62,7 @@ export class FinesStore {
       this.currencyState.set(currency.currency);
     }
     await this.load();
+    await this.loadSummary();
   }
 
   async load(): Promise<void> {
@@ -65,6 +91,14 @@ export class FinesStore {
     }
   }
 
+  async loadSummary(): Promise<void> {
+    const result = await this.repo.summary();
+    this.summaryErrorState.set(result.error);
+    if (result.row) {
+      this.summaryState.set(result.row);
+    }
+  }
+
   async setStatusFilter(status: FineStatusFilter): Promise<void> {
     if (status === this.statusFilterState()) return;
     this.statusFilterState.set(status);
@@ -75,5 +109,104 @@ export class FinesStore {
   async setPage(page: number): Promise<void> {
     this.pageState.set(page);
     await this.load();
+  }
+
+  async openDetails(fine: FineListItem): Promise<void> {
+    this.selectedFineState.set(fine);
+    this.paymentsState.set([]);
+    this.paymentsErrorState.set(null);
+    this.paymentsLoadingState.set(true);
+    try {
+      const { rows, error } = await this.repo.listPayments(fine.id);
+      if (this.selectedFineState()?.id !== fine.id) return;
+      if (error) {
+        this.paymentsErrorState.set(error);
+        return;
+      }
+      this.paymentsState.set(rows);
+    } finally {
+      if (this.selectedFineState()?.id === fine.id) {
+        this.paymentsLoadingState.set(false);
+      }
+    }
+  }
+
+  closeDetails(): void {
+    this.selectedFineState.set(null);
+    this.paymentsState.set([]);
+    this.paymentsLoadingState.set(false);
+    this.paymentsErrorState.set(null);
+  }
+
+  clearReceipt(): void {
+    this.receiptState.set(null);
+  }
+
+  async recordPayment(fineId: string, amount: number, method: string): Promise<PaymentResult> {
+    this.busyState.set(true);
+    try {
+      const result = await this.repo.recordPayment(fineId, amount, method);
+      if (result.ok) {
+        this.receiptState.set(result.receipt);
+        await this.afterMutation(result.receipt.fine);
+      }
+      return result;
+    } finally {
+      this.busyState.set(false);
+    }
+  }
+
+  async waiveFine(fineId: string, reason: string): Promise<WaiveResult> {
+    this.busyState.set(true);
+    try {
+      const result = await this.repo.waiveFine(fineId, reason);
+      if (result.ok) {
+        await this.afterMutation(result.fine);
+      }
+      return result;
+    } finally {
+      this.busyState.set(false);
+    }
+  }
+
+  async voidPayment(paymentId: string, reason: string): Promise<VoidResult> {
+    this.busyState.set(true);
+    try {
+      const result = await this.repo.voidPayment(paymentId, reason);
+      if (result.ok) {
+        await this.afterMutation(result.fine);
+      }
+      return result;
+    } finally {
+      this.busyState.set(false);
+    }
+  }
+
+  /**
+   * Money moved: the list and stat cards are stale, and an open detail view
+   * must reflect the fine's new amount_paid/status. Reloads in place.
+   */
+  private async afterMutation(fine: {
+    id: string;
+    amount_paid: number;
+    status: FineListItem['status'];
+  }): Promise<void> {
+    const selected = this.selectedFineState();
+    if (selected?.id === fine.id) {
+      this.selectedFineState.set({ ...selected, ...fine });
+      await this.loadPayments(fine.id);
+    }
+    await this.load();
+    await this.loadSummary();
+  }
+
+  private async loadPayments(fineId: string): Promise<void> {
+    const { rows, error } = await this.repo.listPayments(fineId);
+    if (this.selectedFineState()?.id !== fineId) return;
+    if (error) {
+      this.paymentsErrorState.set(error);
+      return;
+    }
+    this.paymentsState.set(rows);
   }
 }

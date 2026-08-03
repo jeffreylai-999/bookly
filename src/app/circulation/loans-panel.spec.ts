@@ -56,6 +56,8 @@ describe('LoansPanel', () => {
     const loansSig = signal<LoanListItem[]>([]);
     const overdueSig = signal<OverdueLoan[]>([]);
 
+    const renewingIdSig = signal<string | null>(null);
+
     const store = {
       tab: tabSig.asReadonly(),
       loans: loansSig.asReadonly(),
@@ -67,13 +69,16 @@ describe('LoansPanel', () => {
       error: signal<string | null>(null).asReadonly(),
       currency: signal('USD').asReadonly(),
       empty: signal(false).asReadonly(),
+      renewingId: renewingIdSig.asReadonly(),
       init: vi.fn().mockResolvedValue(undefined),
       setTab: vi.fn(async (tab: LoansTab) => tabSig.set(tab)),
       setPage: vi.fn().mockResolvedValue(undefined),
+      renew: vi.fn().mockResolvedValue({ ok: true, loan: activeLoan }),
       ...storeOverrides,
       _tabSig: tabSig,
       _loansSig: loansSig,
       _overdueSig: overdueSig,
+      _renewingIdSig: renewingIdSig,
     };
 
     const toast = { show: vi.fn(), error: vi.fn() };
@@ -152,6 +157,78 @@ describe('LoansPanel', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Returned');
     expect(text).toContain('Aug 1, 2026');
+  });
+
+  function renewButton(host: HTMLElement): HTMLButtonElement {
+    const button = [...host.querySelectorAll('button')].find(
+      (b) => (b.textContent ?? '').trim() === 'Renew',
+    );
+    if (!button) throw new Error('Renew button not found');
+    return button as HTMLButtonElement;
+  }
+
+  it('renews from a loan row and toasts the new due date', async () => {
+    const renewed = { ...activeLoan, renew_count: 1, due_at: '2026-08-22T00:00:00Z' };
+    const { fixture, store, toast } = await setup({
+      renew: vi.fn().mockResolvedValue({ ok: true, loan: renewed }),
+    });
+    store._loansSig.set([activeLoan]);
+    fixture.detectChanges();
+
+    renewButton(fixture.nativeElement as HTMLElement).click();
+    await fixture.whenStable();
+
+    expect(store.renew).toHaveBeenCalledWith(activeLoan);
+    expect(toast.show).toHaveBeenCalledWith('Renewed · due Aug 22, 2026');
+  });
+
+  it('toasts the typed gate message when the RPC rejects', async () => {
+    const { fixture, store, toast } = await setup({
+      renew: vi.fn().mockResolvedValue({ ok: false, error: 'loan_overdue' }),
+    });
+    store._loansSig.set([activeLoan]);
+    fixture.detectChanges();
+
+    renewButton(fixture.nativeElement as HTMLElement).click();
+    await fixture.whenStable();
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'This loan is overdue — check it in instead of renewing.',
+    );
+  });
+
+  it('labels each row action with its title and barcode', async () => {
+    const { fixture, store } = await setup();
+    store._loansSig.set([activeLoan]);
+    fixture.detectChanges();
+
+    expect(renewButton(fixture.nativeElement as HTMLElement).getAttribute('aria-label')).toBe(
+      'Renew Dune (BK-100)',
+    );
+  });
+
+  it('disables renew while a renewal is in flight and hides it on the returned tab', async () => {
+    const { fixture, store } = await setup();
+    store._loansSig.set([activeLoan]);
+    store._renewingIdSig.set('l1');
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const working = [...host.querySelectorAll('button')].find((b) =>
+      (b.textContent ?? '').includes('Renewing'),
+    ) as HTMLButtonElement;
+    expect(working.disabled).toBe(true);
+
+    store._tabSig.set('returned');
+    store._renewingIdSig.set(null);
+    store._loansSig.set([{ ...activeLoan, status: 'returned' }]);
+    fixture.detectChanges();
+
+    expect(
+      [...host.querySelectorAll('button')].some(
+        (b) => (b.textContent ?? '').trim() === 'Renew',
+      ),
+    ).toBe(false);
   });
 
   it('shows the empty state when a tab has no loans', async () => {

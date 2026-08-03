@@ -309,6 +309,7 @@ describe('CirculationRepository', () => {
           created_at: '2026-08-01T10:00:00Z',
         },
       ],
+      hold: null,
     };
     const rpcCalls: unknown[] = [];
     const client = {
@@ -336,7 +337,99 @@ describe('CirculationRepository', () => {
       condition: 'ok',
       daysLate: 3,
       fines: payload.fines,
+      hold: null,
     });
+  });
+
+  it('passes the fill-hold choice to the checkin RPC and maps the readied hold', async () => {
+    const payload = {
+      loan: {
+        id: 'l1',
+        copy_id: 'c1',
+        member_id: 'm1',
+        checked_out_by: 'p1',
+        checked_out_at: '2026-07-01T00:00:00Z',
+        due_at: '2026-07-22T00:00:00Z',
+        returned_at: '2026-08-01T10:00:00Z',
+        renew_count: 0,
+        status: 'returned',
+        created_at: '2026-07-01T00:00:00Z',
+      },
+      copy_id: 'c1',
+      barcode: 'BK-100',
+      copy_status: 'on_hold_shelf',
+      condition: 'ok',
+      days_late: null,
+      fines: [],
+      hold: {
+        id: 'h1',
+        member_id: 'm2',
+        member_name: 'Grace',
+        copy_barcode: 'BK-100',
+        expires_at: '2026-08-08T10:00:00Z',
+      },
+    };
+    const rpcCalls: unknown[] = [];
+    const client = {
+      from: () => createQueryBuilder(() => ({ data: null, error: null })),
+      rpc: async (fn: string, args: unknown) => {
+        rpcCalls.push({ fn, args });
+        return { data: payload, error: null };
+      },
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.checkin('BK-100', 'ok', undefined, true);
+
+    expect(rpcCalls).toEqual([
+      {
+        fn: 'checkin',
+        args: { p_copy_barcode: 'BK-100', p_condition: 'ok', p_fill_hold: true },
+      },
+    ]);
+    expect(result).toEqual({
+      ok: true,
+      loan: payload.loan,
+      copyStatus: 'on_hold_shelf',
+      condition: 'ok',
+      daysLate: null,
+      fines: [],
+      hold: payload.hold,
+    });
+  });
+
+  it('counts waiting holds for a title', async () => {
+    const eqCalls: [string, unknown][] = [];
+    const client = {
+      from: (table: string) => {
+        expect(table).toBe('holds');
+        const builder = createQueryBuilder(() => ({ data: null, error: null, count: 3 }));
+        const originalEq = builder['eq'] as (c: string, v: unknown) => unknown;
+        builder['eq'] = (column: string, value: unknown) => {
+          eqCalls.push([column, value]);
+          return originalEq(column, value);
+        };
+        return builder;
+      },
+      rpc: async () => ({ data: null, error: null }),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.countWaitingHolds('t1');
+
+    expect(eqCalls).toEqual([
+      ['title_id', 't1'],
+      ['status', 'waiting'],
+    ]);
+    expect(result).toEqual({ count: 3, error: null });
   });
 
   it('passes the damaged override amount to the checkin RPC', async () => {
@@ -363,6 +456,74 @@ describe('CirculationRepository', () => {
       },
     ]);
     expect(result).toEqual({ ok: false, error: 'loan_not_found' });
+  });
+
+  it('renews a loan via the renew_loan RPC and returns the updated row', async () => {
+    const loan = {
+      id: 'l1',
+      copy_id: 'c1',
+      member_id: 'm1',
+      checked_out_by: 'p1',
+      checked_out_at: '2026-07-01T00:00:00Z',
+      due_at: '2026-08-22T00:00:00Z',
+      returned_at: null,
+      renew_count: 1,
+      status: 'active',
+      created_at: '2026-07-01T00:00:00Z',
+    };
+    const rpcCalls: unknown[] = [];
+    const client = {
+      from: () => createQueryBuilder(() => ({ data: null, error: null })),
+      rpc: async (fn: string, args: unknown) => {
+        rpcCalls.push({ fn, args });
+        return { data: loan, error: null };
+      },
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.renew('l1');
+
+    expect(rpcCalls).toEqual([{ fn: 'renew_loan', args: { p_loan_id: 'l1' } }]);
+    expect(result).toEqual({ ok: true, loan });
+  });
+
+  it('maps renew RPC gate errors to typed codes', async () => {
+    const client = {
+      from: () => createQueryBuilder(() => ({ data: null, error: null })),
+      rpc: async () => ({ data: null, error: { message: 'loan_overdue' } }),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.renew('l1');
+
+    expect(result).toEqual({ ok: false, error: 'loan_overdue' });
+  });
+
+  it('maps renew errors carrying the code in a longer message', async () => {
+    const client = {
+      from: () => createQueryBuilder(() => ({ data: null, error: null })),
+      rpc: async () => ({
+        data: null,
+        error: { message: 'renewal_limit_reached: raise exception' },
+      }),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.renew('l1');
+
+    expect(result).toEqual({ ok: false, error: 'renewal_limit_reached' });
   });
 
   it('lists active and returned loans with copy and member flattened', async () => {
@@ -449,5 +610,59 @@ describe('CirculationRepository', () => {
       ['due_at', { ascending: true }],
     ]);
     expect(result.error).toBeNull();
+  });
+
+  it('sums materialized balance and projected fines for the member panel', async () => {
+    const inCalls: [string, unknown][] = [];
+    const client = {
+      from: (table: string) => {
+        const builder =
+          table === 'fines'
+            ? createQueryBuilder(() => ({
+                data: [
+                  { amount: 10, amount_paid: 4 },
+                  { amount: 5, amount_paid: 0 },
+                ],
+                error: null,
+              }))
+            : createQueryBuilder(() => ({
+                data: [{ projected_fine: 0.75 }, { projected_fine: 0.25 }],
+                error: null,
+              }));
+        const originalIn = builder['in'] as (c: string, v: unknown) => unknown;
+        builder['in'] = (column: string, value: unknown) => {
+          inCalls.push([column, value]);
+          return originalIn(column, value);
+        };
+        return builder;
+      },
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.getMemberMoney('m1');
+
+    // Gate sum: materialized outstanding/partial fines only.
+    expect(inCalls).toEqual([['status', ['outstanding', 'partial']]]);
+    expect(result.error).toBeNull();
+    expect(result.row).toEqual({ balance: 11, projected: 1 });
+  });
+
+  it('fails the money read when the fines query fails', async () => {
+    const client = {
+      from: () => createQueryBuilder(() => ({ data: null, error: { message: 'boom' } })),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.getMemberMoney('m1');
+
+    expect(result).toEqual({ row: null, error: 'boom' });
   });
 });

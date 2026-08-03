@@ -9,10 +9,12 @@ import type {
   CheckoutCopy,
   CheckoutMember,
   CheckoutResult,
+  Loan,
   LoanListItem,
   OverdueLoan,
+  RenewResult,
 } from './circulation.types';
-import { mapCheckinError, mapCheckoutError } from './circulation.types';
+import { mapCheckinError, mapCheckoutError, mapRenewError } from './circulation.types';
 
 const MEMBER_SELECT =
   '*, member_type:member_types(id, name, loan_period_days, borrow_cap)';
@@ -24,6 +26,13 @@ const LOAN_LIST_SELECT =
   '*, copy:copies(id, barcode, titles(title, author)), member:members(id, name, card_barcode)';
 
 export type DeskSettings = Pick<Tables<'app_settings'>, 'currency' | 'damaged_fee_default'>;
+
+/**
+ * The member-panel money line: balance from materialized fines only (the same
+ * sum the checkout gate enforces), projected from the overdue_loans view —
+ * provisional, never blocking (spec §6).
+ */
+export type MemberMoney = { balance: number; projected: number };
 
 export type ListQuery = { page: number; pageSize: number };
 export type ListResult<T> = { rows: T[]; total: number; error: string | null };
@@ -188,6 +197,38 @@ export class CirculationRepository {
     return { row: data ?? null, error: error?.message ?? null };
   }
 
+  async getMemberMoney(
+    memberId: string,
+  ): Promise<{ row: MemberMoney | null; error: string | null }> {
+    const fines = await this.supabase
+      .from('fines')
+      .select('amount, amount_paid')
+      .eq('member_id', memberId)
+      .in('status', ['outstanding', 'partial']);
+    if (fines.error) {
+      return { row: null, error: fines.error.message };
+    }
+
+    const overdue = await this.supabase
+      .from('overdue_loans')
+      .select('projected_fine')
+      .eq('member_id', memberId);
+    if (overdue.error) {
+      return { row: null, error: overdue.error.message };
+    }
+
+    const balance = (fines.data ?? []).reduce(
+      (sum, fine) => sum + (fine.amount - fine.amount_paid),
+      0,
+    );
+    const projected = (overdue.data ?? []).reduce(
+      (sum, loan) => sum + (loan.projected_fine ?? 0),
+      0,
+    );
+
+    return { row: { balance, projected }, error: null };
+  }
+
   async getSettings(): Promise<{ row: DeskSettings | null; error: string | null }> {
     const { data, error } = await this.supabase
       .from('app_settings')
@@ -198,15 +239,29 @@ export class CirculationRepository {
     return { row: data ?? null, error: error?.message ?? null };
   }
 
+  async countWaitingHolds(
+    titleId: string,
+  ): Promise<{ count: number; error: string | null }> {
+    const { count, error } = await this.supabase
+      .from('holds')
+      .select('id', { count: 'exact', head: true })
+      .eq('title_id', titleId)
+      .eq('status', 'waiting');
+
+    return { count: count ?? 0, error: error?.message ?? null };
+  }
+
   async checkin(
     barcode: string,
     condition: CheckinCondition,
     damagedAmount?: number,
+    fillHold = false,
   ): Promise<CheckinResult> {
     const { data, error } = await this.supabase.rpc('checkin', {
       p_copy_barcode: barcode.trim(),
       p_condition: condition,
       ...(damagedAmount === undefined ? {} : { p_damaged_amount: damagedAmount }),
+      ...(fillHold ? { p_fill_hold: true } : {}),
     });
 
     if (error) {
@@ -221,7 +276,20 @@ export class CirculationRepository {
       condition: payload.condition,
       daysLate: payload.days_late,
       fines: payload.fines ?? [],
+      hold: payload.hold ?? null,
     };
+  }
+
+  async renew(loanId: string): Promise<RenewResult> {
+    const { data, error } = await this.supabase.rpc('renew_loan', {
+      p_loan_id: loanId,
+    });
+
+    if (error) {
+      return { ok: false, error: mapRenewError(error.message) };
+    }
+
+    return { ok: true, loan: data as Loan };
   }
 
   async listLoans(

@@ -33,7 +33,11 @@ export const routes: Routes = [
         path: 'members',
         loadComponent: () => import('./members/members-list').then((m) => m.MembersList),
       },
-      { path: 'holds', component: ComingSoon, data: { titleKey: 'nav.holds' } },
+      {
+        path: 'holds',
+        loadComponent: () => import('./holds/holds').then((m) => m.Holds),
+        data: { titleKey: 'nav.holds' },
+      },
       {
         path: 'fines',
         loadComponent: () => import('./fines/fines-list').then((m) => m.FinesList),
