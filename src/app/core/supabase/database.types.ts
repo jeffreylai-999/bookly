@@ -750,6 +750,7 @@ export type Database = {
       promote_waiting_hold: {
         Args: { p_copy_id: string; p_title_id: string }
         Returns: string
+      }
       record_payment: {
         Args: { p_amount: number; p_fine_id: string; p_method: string }
         Returns: Json
