@@ -1,7 +1,6 @@
 import { Routes } from '@angular/router';
 
 import { adminGuard, authGuard, guestGuard } from './core/auth';
-import { ComingSoon } from './shell/coming-soon';
 
 export const routes: Routes = [
   {
@@ -43,7 +42,11 @@ export const routes: Routes = [
         loadComponent: () => import('./fines/fines-list').then((m) => m.FinesList),
         data: { titleKey: 'nav.fines' },
       },
-      { path: 'reports', component: ComingSoon, data: { titleKey: 'nav.reports' } },
+      {
+        path: 'reports',
+        loadComponent: () => import('./reports/reports').then((m) => m.Reports),
+        data: { titleKey: 'nav.reports' },
+      },
       {
         path: 'settings',
         canActivate: [adminGuard],

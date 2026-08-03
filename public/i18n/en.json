@@ -737,6 +737,92 @@
   "scan": {
     "unknownBarcode": "Unrecognized barcode. Expected an MBR- card or BK- copy."
   },
+  "reports": {
+    "title": "Reports",
+    "subtitle": "{{from}} – {{to}}",
+    "rangeLabel": "Report range",
+    "rangeOption": "{{days}} days",
+    "export": "Export CSV",
+    "errors": {
+      "loadFailed": "Couldn't load reports. Check your connection and try again."
+    },
+    "overdueAging": {
+      "title": "Overdue aging",
+      "subtitle": "Present state — current overdue loans, not affected by the range selector",
+      "columns": {
+        "bucket": "Days late",
+        "count": "Loans"
+      },
+      "buckets": {
+        "oneToSeven": "1–7 days",
+        "eightToFourteen": "8–14 days",
+        "fifteenToThirty": "15–30 days",
+        "thirtyPlus": "30+ days"
+      }
+    },
+    "deadStock": {
+      "title": "Dead stock",
+      "subtitle": "Titles with a lendable copy and zero checkouts in the last {{days}} days",
+      "columns": {
+        "title": "Title",
+        "author": "Author",
+        "genre": "Genre",
+        "copies": "Lendable copies"
+      },
+      "empty": {
+        "headline": "No dead stock",
+        "message": "Every lendable title has checked out at least once in this range."
+      }
+    },
+    "highDemand": {
+      "title": "High demand",
+      "subtitle": "Top titles by checkouts in the last {{days}} days",
+      "columns": {
+        "title": "Title",
+        "author": "Author",
+        "checkouts": "Checkouts",
+        "waitingHolds": "Waiting holds"
+      },
+      "empty": {
+        "headline": "No checkouts yet",
+        "message": "Titles appear here once they're checked out in this range."
+      }
+    },
+    "fineCollection": {
+      "title": "Fine collection",
+      "subtitle": "Collected vs incurred, per day, over the last {{days}} days",
+      "columns": {
+        "date": "Date",
+        "collected": "Collected",
+        "incurred": "Incurred"
+      }
+    },
+    "newMemberGrowth": {
+      "title": "New member growth",
+      "subtitle": "New members per day over the last {{days}} days",
+      "columns": {
+        "date": "Date",
+        "count": "New members"
+      }
+    },
+    "peakHours": {
+      "title": "Peak hours",
+      "subtitle": "Check-out volume by hour of day (library time) over the last {{days}} days",
+      "hourLabel": "{{hour}}:00",
+      "columns": {
+        "hour": "Hour",
+        "count": "Check-outs"
+      }
+    },
+    "genreBreakdown": {
+      "title": "Genre breakdown",
+      "subtitle": "Checkouts by genre over the last {{days}} days",
+      "columns": {
+        "genre": "Genre",
+        "count": "Checkouts"
+      }
+    }
+  },
   "settings": {
     "title": "Settings",
     "subtitle": "Lending rules and system-wide defaults. Changes apply to the next desk action.",

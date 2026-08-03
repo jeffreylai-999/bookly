@@ -31,6 +31,7 @@ import {
 } from 'lucide-angular';
 
 import { provideAuthInitializer, provideRouteFocusManagement } from './core/auth';
+import { provideAppEcharts } from './core/echarts';
 import { provideAppTransloco } from './core/i18n';
 import { provideSupabaseClient } from './core/supabase';
 import { routes } from './app.routes';
@@ -70,6 +71,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withFetch()),
     provideClientHydration(),
     provideAppTransloco(),
+    provideAppEcharts(),
     provideSupabaseClient(),
     provideAuthInitializer(),
     provideRouteFocusManagement(),
