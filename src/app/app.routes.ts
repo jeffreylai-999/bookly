@@ -34,6 +34,10 @@ export const routes: Routes = [
         loadComponent: () => import('./members/members-list').then((m) => m.MembersList),
       },
       {
+        path: 'members/:id',
+        loadComponent: () => import('./members/member-detail').then((m) => m.MemberDetail),
+      },
+      {
         path: 'holds',
         loadComponent: () => import('./holds/holds').then((m) => m.Holds),
         data: { titleKey: 'nav.holds' },
