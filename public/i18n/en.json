@@ -58,9 +58,68 @@
     }
   },
   "overview": {
-    "empty": {
-      "headline": "Morning briefing comes next",
-      "message": "Overview stays empty until the launchpad slice. Use the sidebar to reach desk flows as they ship."
+    "title": "Morning briefing",
+    "subtitle": "Quick actions, what's due, and what needs attention today.",
+    "loading": "Loading the morning briefing",
+    "quickActions": {
+      "checkout": "Check out",
+      "checkoutHint": "Scan a member card and copies.",
+      "checkin": "Check in",
+      "checkinHint": "Scan a copy to return it."
+    },
+    "stats": {
+      "overdueCount": "Overdue loans",
+      "holdsWaiting": "Holds waiting",
+      "finesOutstanding": "Fines outstanding"
+    },
+    "sections": {
+      "holdsReady": "Holds ready for pickup",
+      "dueToday": "Due today",
+      "topOverdue": "Top overdue",
+      "trend": "14-day checkout trend",
+      "recentActivity": "Recent activity"
+    },
+    "holdsReady": {
+      "meta": "{{name}} · {{barcode}}",
+      "empty": {
+        "headline": "No holds ready",
+        "message": "Holds move here once a copy is pulled for the queue head."
+      }
+    },
+    "dueToday": {
+      "meta": "{{name}} · {{barcode}}",
+      "due": "Due {{time}}",
+      "empty": {
+        "headline": "Nothing due today",
+        "message": "Loans due back today, in the library's timezone, appear here."
+      }
+    },
+    "topOverdue": {
+      "meta": "{{name}} · {{barcode}}",
+      "daysLate": "{{days}}d late",
+      "empty": {
+        "headline": "Nothing overdue — nice.",
+        "message": "Loans past their due date, with an accruing fine, appear here."
+      }
+    },
+    "trend": {
+      "chartLabel": "Checkouts per day, last 14 days",
+      "categoryLabel": "Day",
+      "seriesLabel": "Checkouts"
+    },
+    "recentActivity": {
+      "meta": "{{actor}} · {{when}}",
+      "empty": {
+        "headline": "No recent activity",
+        "message": "Desk actions appear here as staff use the system."
+      }
+    },
+    "errors": {
+      "holdsReady": "Couldn't load holds ready for pickup.",
+      "dueToday": "Couldn't load today's due list.",
+      "topOverdue": "Couldn't load the top overdue list.",
+      "trend": "Couldn't load the checkout trend.",
+      "recentActivity": "Couldn't load recent activity."
     }
   },
   "catalog": {

@@ -9,6 +9,8 @@ import type {
   CheckoutCopy,
   CheckoutMember,
   CheckoutResult,
+  CheckoutTrendPoint,
+  DueTodayLoan,
   Loan,
   LoanListItem,
   OverdueLoan,
@@ -330,5 +332,33 @@ export class CirculationRepository {
       total: count ?? 0,
       error: error?.message ?? null,
     };
+  }
+
+  /** Due today, library-local (due_today_loans view) — feeds the Overview launchpad. */
+  async listDueToday(query: ListQuery): Promise<ListResult<DueTodayLoan>> {
+    const from = (query.page - 1) * query.pageSize;
+    const to = from + query.pageSize - 1;
+
+    const { data, error, count } = await this.supabase
+      .from('due_today_loans')
+      .select('*', { count: 'exact' })
+      .order('due_at', { ascending: true })
+      .range(from, to);
+
+    return {
+      rows: data ?? [],
+      total: count ?? 0,
+      error: error?.message ?? null,
+    };
+  }
+
+  /** 14-day, zero-filled, library-local checkout counts (checkout_trend view). */
+  async getCheckoutTrend(): Promise<{ rows: CheckoutTrendPoint[]; error: string | null }> {
+    const { data, error } = await this.supabase
+      .from('checkout_trend')
+      .select('*')
+      .order('day', { ascending: true });
+
+    return { rows: data ?? [], error: error?.message ?? null };
   }
 }
