@@ -194,6 +194,33 @@ describe('HoldsRepository', () => {
     expect(result).toEqual({ ok: false, error: 'copy_not_available' });
   });
 
+  it('counts holds by status for the Overview stat card', async () => {
+    const eqCalls: [string, unknown][] = [];
+    const client = {
+      from: (table: string) => {
+        expect(table).toBe('holds');
+        const builder = createQueryBuilder(() => ({ data: null, error: null, count: 4 }));
+        const originalEq = builder['eq'] as (c: string, v: unknown) => unknown;
+        builder['eq'] = (column: string, value: unknown) => {
+          eqCalls.push([column, value]);
+          return originalEq(column, value);
+        };
+        return builder;
+      },
+      rpc: async () => ({ data: null, error: null }),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [HoldsRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(HoldsRepository);
+    const result = await repo.countByStatus('waiting');
+
+    expect(eqCalls).toEqual([['status', 'waiting']]);
+    expect(result).toEqual({ count: 4, error: null });
+  });
+
   it('cancels a hold by id', async () => {
     const rpcCalls: unknown[] = [];
     const client = {
