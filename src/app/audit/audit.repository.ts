@@ -49,6 +49,17 @@ export class AuditRepository {
     };
   }
 
+  /** Most recent N entries regardless of filters — the Overview activity feed. */
+  async listRecent(limit: number): Promise<{ rows: AuditListItem[]; error: string | null }> {
+    const { data, error } = await this.supabase
+      .from('audit_log')
+      .select(LIST_SELECT)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    return { rows: (data as AuditListItem[] | null) ?? [], error: error?.message ?? null };
+  }
+
   async listActors(): Promise<{ rows: AuditActorRef[]; error: string | null }> {
     const { data, error } = await this.supabase
       .from('profiles')
