@@ -40,6 +40,23 @@
     "toastDismiss": "Dismiss notification",
     "comingSoon": "This desk surface lands in a later slice."
   },
+  "notifications": {
+    "title": "Notifications",
+    "bellLabel": "Notifications",
+    "bellLabelUnread": "Notifications, {{count}} unread",
+    "markAllRead": "Mark all as read",
+    "loadFailed": "Couldn't load notifications.",
+    "empty": {
+      "headline": "No notifications yet",
+      "message": "Hold-ready, overdue, and payment events land here."
+    },
+    "messages": {
+      "holdReady": "{{title}} is ready for {{member}} — pick up by {{expires}}.",
+      "paymentRecorded": "{{amount}} payment recorded for {{member}}.",
+      "overdue": "{{title}} is overdue for {{member}}.",
+      "fallback": "New notification."
+    }
+  },
   "overview": {
     "title": "Morning briefing",
     "subtitle": "Quick actions, what's due, and what needs attention today.",
