@@ -4,6 +4,7 @@ export * from './bar-chart';
 export * from './button';
 export * from './card';
 export * from './dialog';
+export * from './echart';
 export * from './empty-state';
 export * from './field';
 export * from './kpi-card';

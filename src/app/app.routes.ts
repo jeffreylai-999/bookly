@@ -1,7 +1,6 @@
 import { Routes } from '@angular/router';
 
 import { adminGuard, authGuard, guestGuard } from './core/auth';
-import { ComingSoon } from './shell/coming-soon';
 
 export const routes: Routes = [
   {
@@ -34,6 +33,10 @@ export const routes: Routes = [
         loadComponent: () => import('./members/members-list').then((m) => m.MembersList),
       },
       {
+        path: 'members/:id',
+        loadComponent: () => import('./members/member-detail').then((m) => m.MemberDetail),
+      },
+      {
         path: 'holds',
         loadComponent: () => import('./holds/holds').then((m) => m.Holds),
         data: { titleKey: 'nav.holds' },
@@ -43,7 +46,11 @@ export const routes: Routes = [
         loadComponent: () => import('./fines/fines-list').then((m) => m.FinesList),
         data: { titleKey: 'nav.fines' },
       },
-      { path: 'reports', component: ComingSoon, data: { titleKey: 'nav.reports' } },
+      {
+        path: 'reports',
+        loadComponent: () => import('./reports/reports').then((m) => m.Reports),
+        data: { titleKey: 'nav.reports' },
+      },
       {
         path: 'settings',
         canActivate: [adminGuard],

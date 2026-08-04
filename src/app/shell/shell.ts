@@ -7,6 +7,7 @@ import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../core/auth';
 import { ScanService } from '../core/scan';
 import { ToastService, UiLayout, UiSidebarNavItem, UiTopbar } from '../ui';
+import { NotificationBell } from './notification-bell';
 
 interface NavItem {
   icon: string;
@@ -30,7 +31,7 @@ const NAV_ITEMS: NavItem[] = [
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, TranslocoPipe, UiLayout, UiSidebarNavItem, UiTopbar],
+  imports: [RouterOutlet, TranslocoPipe, NotificationBell, UiLayout, UiSidebarNavItem, UiTopbar],
   template: `
     <ui-layout [skipLabel]="'shell.skip' | transloco">
       <div layout-sidebar class="flex h-full flex-col gap-1">
@@ -59,7 +60,9 @@ const NAV_ITEMS: NavItem[] = [
         </div>
       </div>
 
-      <ui-topbar [pageTitle]="pageTitle()" [subtitle]="pageSubtitle()" />
+      <ui-topbar [pageTitle]="pageTitle()" [subtitle]="pageSubtitle()">
+        <app-notification-bell />
+      </ui-topbar>
 
       <router-outlet />
     </ui-layout>

@@ -46,6 +46,15 @@ export class MembersRepository {
     };
   }
 
+  async getById(id: string): Promise<{ row: MemberListItem | null; error: string | null }> {
+    const { data, error } = await this.supabase
+      .from('members')
+      .select(LIST_SELECT)
+      .eq('id', id)
+      .maybeSingle();
+    return { row: (data as MemberListItem | null) ?? null, error: error?.message ?? null };
+  }
+
   async listMemberTypes(): Promise<{ rows: MemberType[]; error: string | null }> {
     const { data, error } = await this.supabase
       .from('member_types')

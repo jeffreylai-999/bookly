@@ -577,6 +577,68 @@ describe('CirculationRepository', () => {
     expect(result.rows[0]?.member).toEqual({ id: 'm1', name: 'Ada', card_barcode: 'MBR-1' });
   });
 
+  it("lists a member's active loans, soonest due first", async () => {
+    const fromCalls: string[] = [];
+    const orderCalls: [string, { ascending: boolean }][] = [];
+    const eqCalls: [string, unknown][] = [];
+    const row = {
+      id: 'l1',
+      copy_id: 'c1',
+      member_id: 'm1',
+      checked_out_by: 'p1',
+      checked_out_at: '2026-07-01T00:00:00Z',
+      due_at: '2026-07-22T00:00:00Z',
+      returned_at: null,
+      renew_count: 0,
+      status: 'active',
+      created_at: '2026-07-01T00:00:00Z',
+      copy: { id: 'c1', barcode: 'BK-100', titles: { title: 'Dune', author: 'Herbert' } },
+      member: { id: 'm1', name: 'Ada', card_barcode: 'MBR-1' },
+    };
+    const client = {
+      from: (table: string) => {
+        fromCalls.push(table);
+        const builder = createQueryBuilder(() => ({ data: [row], error: null }));
+        const originalOrder = builder['order'] as (
+          c: string,
+          o: { ascending: boolean },
+        ) => unknown;
+        builder['order'] = (column: string, options: { ascending: boolean }) => {
+          orderCalls.push([column, options]);
+          return originalOrder(column, options);
+        };
+        const originalEq = builder['eq'] as (c: string, v: unknown) => unknown;
+        builder['eq'] = (column: string, value: unknown) => {
+          eqCalls.push([column, value]);
+          return originalEq(column, value);
+        };
+        return builder;
+      },
+      rpc: async () => ({ data: null, error: null }),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.listActiveLoansByMember('m1');
+
+    expect(fromCalls).toEqual(['loans']);
+    expect(eqCalls).toEqual([
+      ['member_id', 'm1'],
+      ['status', 'active'],
+    ]);
+    expect(orderCalls).toEqual([['due_at', { ascending: true }]]);
+    expect(result.error).toBeNull();
+    expect(result.rows[0]?.copy).toEqual({
+      id: 'c1',
+      barcode: 'BK-100',
+      title: 'Dune',
+      author: 'Herbert',
+    });
+  });
+
   it('lists overdue loans from the overdue_loans view, most days late first', async () => {
     const fromCalls: string[] = [];
     const orderCalls: [string, { ascending: boolean }][] = [];
@@ -610,6 +672,77 @@ describe('CirculationRepository', () => {
       ['due_at', { ascending: true }],
     ]);
     expect(result.error).toBeNull();
+  });
+
+  it('lists due-today loans from the due_today_loans view, earliest due first', async () => {
+    const fromCalls: string[] = [];
+    const orderCalls: [string, { ascending: boolean }][] = [];
+    const client = {
+      from: (table: string) => {
+        fromCalls.push(table);
+        const builder = createQueryBuilder(() => ({ data: [], error: null, count: 0 }));
+        const originalOrder = builder['order'] as (
+          c: string,
+          o: { ascending: boolean },
+        ) => unknown;
+        builder['order'] = (column: string, options: { ascending: boolean }) => {
+          orderCalls.push([column, options]);
+          return originalOrder(column, options);
+        };
+        return builder;
+      },
+      rpc: async () => ({ data: null, error: null }),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.listDueToday({ page: 1, pageSize: 5 });
+
+    expect(fromCalls).toEqual(['due_today_loans']);
+    expect(orderCalls).toEqual([['due_at', { ascending: true }]]);
+    expect(result.error).toBeNull();
+    expect(result.rows).toEqual([]);
+    expect(result.total).toBe(0);
+  });
+
+  it('reads the 14-day checkout trend, oldest day first', async () => {
+    const fromCalls: string[] = [];
+    const orderCalls: [string, { ascending: boolean }][] = [];
+    const trend = [
+      { day: '2026-07-21', checkouts: 0 },
+      { day: '2026-07-22', checkouts: 2 },
+    ];
+    const client = {
+      from: (table: string) => {
+        fromCalls.push(table);
+        const builder = createQueryBuilder(() => ({ data: trend, error: null }));
+        const originalOrder = builder['order'] as (
+          c: string,
+          o: { ascending: boolean },
+        ) => unknown;
+        builder['order'] = (column: string, options: { ascending: boolean }) => {
+          orderCalls.push([column, options]);
+          return originalOrder(column, options);
+        };
+        return builder;
+      },
+      rpc: async () => ({ data: null, error: null }),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [CirculationRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(CirculationRepository);
+    const result = await repo.getCheckoutTrend();
+
+    expect(fromCalls).toEqual(['checkout_trend']);
+    expect(orderCalls).toEqual([['day', { ascending: true }]]);
+    expect(result.error).toBeNull();
+    expect(result.rows).toEqual(trend);
   });
 
   it('sums materialized balance and projected fines for the member panel', async () => {
