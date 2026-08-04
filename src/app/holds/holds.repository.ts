@@ -1,7 +1,7 @@
 import { Service, inject } from '@angular/core';
 
 import { SUPABASE_CLIENT } from '../core/supabase';
-import type { Hold, HoldListItem, HoldsError, HoldStatusFilter } from './holds.types';
+import type { Hold, HoldListItem, HoldsError, HoldStatus, HoldStatusFilter } from './holds.types';
 import { mapHoldsError } from './holds.types';
 
 const HOLD_SELECT =
@@ -46,6 +46,17 @@ export class HoldsRepository {
     };
   }
 
+  /** Every hold for the member-detail page — queue positions plus history, oldest first. */
+  async listByMember(memberId: string): Promise<{ rows: HoldListItem[]; error: string | null }> {
+    const { data, error } = await this.supabase
+      .from('holds')
+      .select(HOLD_SELECT)
+      .eq('member_id', memberId)
+      .order('created_at', { ascending: true });
+
+    return { rows: (data as HoldJoinRow[] | null) ?? [], error: error?.message ?? null };
+  }
+
   /** Queue order is enforced server-side: the RPC takes the title, never a hold id. */
   async markReady(
     titleId: string,
@@ -73,5 +84,15 @@ export class HoldsRepository {
       return { ok: false, error: mapHoldsError(error.message) };
     }
     return { ok: true };
+  }
+
+  /** Exact count for one status — the Overview "holds waiting" stat card. */
+  async countByStatus(status: HoldStatus): Promise<{ count: number; error: string | null }> {
+    const { count, error } = await this.supabase
+      .from('holds')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', status);
+
+    return { count: count ?? 0, error: error?.message ?? null };
   }
 }

@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { form, FormField, pattern, required, submit } from '@angular/forms/signals';
+import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 
 import { AuthService } from '../core/auth';
@@ -44,6 +45,7 @@ const STATUS_LABEL_KEYS: Record<MemberStatus, string> = {
   imports: [
     DatePipe,
     FormField,
+    RouterLink,
     TranslocoPipe,
     UiAvatar,
     UiBadge,
@@ -163,6 +165,13 @@ const STATUS_LABEL_KEYS: Record<MemberStatus, string> = {
           </ng-template>
           <ng-template uiCell="actions" let-row>
             <div class="flex flex-wrap items-center justify-end gap-2">
+              <a
+                uiBtn
+                variant="pill-muted"
+                [routerLink]="['/members', row.id]"
+              >
+                {{ 'members.actions.view' | transloco }}
+              </a>
               <button
                 uiBtn
                 variant="pill-muted"

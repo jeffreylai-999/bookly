@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { TranslocoTestingModule } from '@jsverse/transloco';
 import axe from 'axe-core';
 import {
@@ -11,6 +11,7 @@ import {
   ScanBarcode,
   Search,
 } from 'lucide-angular';
+import { of } from 'rxjs';
 
 import en from '../../../public/i18n/en.json';
 import { ThrowingMissingKeyHandler } from '../core/i18n/missing-key-handler';
@@ -19,7 +20,7 @@ import { CirculationDesk } from './circulation-desk';
 import { CirculationRepository } from './circulation.repository';
 
 describe('CirculationDesk', () => {
-  async function setup() {
+  async function setup(queryParams: Record<string, string> = {}) {
     const toast = { show: vi.fn(), error: vi.fn() };
 
     await TestBed.configureTestingModule({
@@ -33,6 +34,15 @@ describe('CirculationDesk', () => {
       ],
       providers: [
         provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: convertToParamMap(queryParams) },
+            // The nested check-out panel (app-circulation) also injects
+            // ActivatedRoute reactively for its own member/copy scan params.
+            queryParamMap: of(convertToParamMap({})),
+          },
+        },
         ThrowingMissingKeyHandler,
         { provide: ToastService, useValue: toast },
         {
@@ -92,9 +102,9 @@ describe('CirculationDesk', () => {
     tabButton(host, 'Check in').click();
     fixture.detectChanges();
 
-    expect(
-      host.querySelector('app-checkin-panel')?.closest('div')?.hasAttribute('hidden'),
-    ).toBe(false);
+    expect(host.querySelector('app-checkin-panel')?.closest('div')?.hasAttribute('hidden')).toBe(
+      false,
+    );
     expect(host.querySelector('app-circulation')?.closest('div')?.hasAttribute('hidden')).toBe(
       true,
     );
@@ -104,6 +114,27 @@ describe('CirculationDesk', () => {
     await fixture.whenStable();
 
     expect(host.querySelector('app-loans-panel')?.closest('div')?.hasAttribute('hidden')).toBe(
+      false,
+    );
+  });
+
+  it('opens on the check-in panel when the Overview quick action deep-links ?tab=checkin', async () => {
+    const { fixture } = await setup({ tab: 'checkin' });
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('app-checkin-panel')?.closest('div')?.hasAttribute('hidden')).toBe(
+      false,
+    );
+    expect(host.querySelector('app-circulation')?.closest('div')?.hasAttribute('hidden')).toBe(
+      true,
+    );
+  });
+
+  it('falls back to check-out for an unrecognized ?tab= value', async () => {
+    const { fixture } = await setup({ tab: 'not-a-real-tab' });
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('app-circulation')?.closest('div')?.hasAttribute('hidden')).toBe(
       false,
     );
   });

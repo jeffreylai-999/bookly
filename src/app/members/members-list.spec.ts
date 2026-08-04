@@ -1,5 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { provideTranslocoMissingHandler, TranslocoTestingModule } from '@jsverse/transloco';
 import axe from 'axe-core';
 import {
@@ -83,6 +84,7 @@ describe('MembersList', () => {
         }),
       ],
       providers: [
+        provideRouter([]),
         lucideIcons,
         provideTranslocoMissingHandler(ThrowingMissingKeyHandler),
         { provide: MembersStore, useValue: store },
@@ -115,6 +117,7 @@ describe('MembersList', () => {
         }),
       ],
       providers: [
+        provideRouter([]),
         lucideIcons,
         provideTranslocoMissingHandler(ThrowingMissingKeyHandler),
         { provide: MembersStore, useValue: createStoreFake() },
@@ -159,6 +162,7 @@ describe('MembersList', () => {
         }),
       ],
       providers: [
+        provideRouter([]),
         lucideIcons,
         provideTranslocoMissingHandler(ThrowingMissingKeyHandler),
         { provide: MembersStore, useValue: store },
@@ -191,6 +195,7 @@ describe('MembersList', () => {
         }),
       ],
       providers: [
+        provideRouter([]),
         lucideIcons,
         provideTranslocoMissingHandler(ThrowingMissingKeyHandler),
         { provide: MembersStore, useValue: createStoreFake() },

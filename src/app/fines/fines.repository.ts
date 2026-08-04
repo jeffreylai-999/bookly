@@ -55,6 +55,17 @@ export class FinesRepository {
     };
   }
 
+  /** Fine history for the member-detail page — newest first, no pagination. */
+  async listByMember(memberId: string): Promise<{ rows: FineListItem[]; error: string | null }> {
+    const { data, error } = await this.supabase
+      .from('fines')
+      .select(LIST_SELECT)
+      .eq('member_id', memberId)
+      .order('created_at', { ascending: false });
+
+    return { rows: (data as FineListItem[] | null) ?? [], error: error?.message ?? null };
+  }
+
   async getCurrency(): Promise<{ currency: string; error: string | null }> {
     const { data, error } = await this.supabase
       .from('app_settings')

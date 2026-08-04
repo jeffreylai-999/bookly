@@ -144,6 +144,13 @@ export type Database = {
             foreignKeyName: "copies_title_id_fkey"
             columns: ["title_id"]
             isOneToOne: false
+            referencedRelation: "due_today_loans"
+            referencedColumns: ["title_id"]
+          },
+          {
+            foreignKeyName: "copies_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
             referencedRelation: "overdue_loans"
             referencedColumns: ["title_id"]
           },
@@ -191,6 +198,13 @@ export type Database = {
           status?: Database["public"]["Enums"]["fine_status"]
         }
         Relationships: [
+          {
+            foreignKeyName: "fines_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "due_today_loans"
+            referencedColumns: ["loan_id"]
+          },
           {
             foreignKeyName: "fines_loan_id_fkey"
             columns: ["loan_id"]
@@ -262,6 +276,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "members"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "holds_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "due_today_loans"
+            referencedColumns: ["title_id"]
           },
           {
             foreignKeyName: "holds_title_id_fkey"
@@ -570,6 +591,44 @@ export type Database = {
       }
     }
     Views: {
+      checkout_trend: {
+        Row: {
+          checkouts: number | null
+          day: string | null
+        }
+        Relationships: []
+      }
+      due_today_loans: {
+        Row: {
+          author: string | null
+          checked_out_at: string | null
+          copy_barcode: string | null
+          copy_id: string | null
+          due_at: string | null
+          loan_id: string | null
+          member_card_barcode: string | null
+          member_id: string | null
+          member_name: string | null
+          title: string | null
+          title_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loans_copy_id_fkey"
+            columns: ["copy_id"]
+            isOneToOne: false
+            referencedRelation: "copies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loans_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fines_summary: {
         Row: {
           collected_total: number | null

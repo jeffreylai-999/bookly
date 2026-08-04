@@ -9,6 +9,10 @@ export type CopyStatus = Enums<'copy_status'>;
 export type MemberStatus = Enums<'member_status'>;
 /** Row of the overdue_loans view — single source of the overdue formula (ADR-0002). */
 export type OverdueLoan = Tables<'overdue_loans'>;
+/** Row of the due_today_loans view — active loans due today in library-local time. */
+export type DueTodayLoan = Tables<'due_today_loans'>;
+/** Row of the checkout_trend view — one library-local day of checkout counts. */
+export type CheckoutTrendPoint = Tables<'checkout_trend'>;
 
 export type CheckoutMember = Tables<'members'> & {
   member_type: Pick<

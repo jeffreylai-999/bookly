@@ -17,6 +17,7 @@ function createQueryBuilder(result: {
     order: vi.fn(),
     range: vi.fn(),
     single: vi.fn(),
+    maybeSingle: vi.fn(),
     then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve),
   };
   builder.select.mockReturnValue(builder);
@@ -27,6 +28,7 @@ function createQueryBuilder(result: {
   builder.order.mockReturnValue(builder);
   builder.range.mockReturnValue(builder);
   builder.single.mockReturnValue(builder);
+  builder.maybeSingle.mockReturnValue(builder);
   return builder;
 }
 
@@ -101,6 +103,52 @@ describe('MembersRepository', () => {
     });
     const inserted = builder.insert.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(inserted).not.toHaveProperty('status');
+  });
+
+  it('fetches a single member by id with member type joined', async () => {
+    const builder = createQueryBuilder({
+      data: {
+        id: 'm1',
+        name: 'Ada',
+        status: 'active',
+        member_type: { id: 't1', name: 'Adult' },
+      },
+      error: null,
+    });
+    const from = vi.fn().mockReturnValue(builder);
+
+    await TestBed.configureTestingModule({
+      providers: [
+        MembersRepository,
+        { provide: SUPABASE_CLIENT, useValue: { from, rpc: vi.fn() } },
+      ],
+    }).compileComponents();
+
+    const repo = TestBed.inject(MembersRepository);
+    const result = await repo.getById('m1');
+
+    expect(from).toHaveBeenCalledWith('members');
+    expect(builder.select).toHaveBeenCalledWith('*, member_type:member_types(id, name)');
+    expect(builder.eq).toHaveBeenCalledWith('id', 'm1');
+    expect(result.error).toBeNull();
+    expect(result.row?.id).toBe('m1');
+  });
+
+  it('returns a null row when no member matches the id', async () => {
+    const builder = createQueryBuilder({ data: null, error: null });
+    const from = vi.fn().mockReturnValue(builder);
+
+    await TestBed.configureTestingModule({
+      providers: [
+        MembersRepository,
+        { provide: SUPABASE_CLIENT, useValue: { from, rpc: vi.fn() } },
+      ],
+    }).compileComponents();
+
+    const repo = TestBed.inject(MembersRepository);
+    const result = await repo.getById('missing');
+
+    expect(result).toEqual({ row: null, error: null });
   });
 
   it('changes status only through set_member_status RPC', async () => {
