@@ -243,6 +243,7 @@
     },
     "actions": {
       "add": "Add member",
+      "view": "View",
       "edit": "Edit",
       "suspend": "Suspend",
       "lift": "Lift suspension",
@@ -292,6 +293,84 @@
       "statusUpdated": "Member status updated",
       "statusFailed": "Could not update member status",
       "auditFailed": "Member saved, but the audit entry could not be written"
+    },
+    "detail": {
+      "back": "Back to members",
+      "loading": "Loading member",
+      "notFoundHeadline": "Member not found",
+      "notFoundMessage": "This member may have been removed or the link is out of date.",
+      "errors": {
+        "loadFailed": "Couldn't load this member. Check your connection and try again."
+      },
+      "contact": {
+        "heading": "Contact & status",
+        "email": "Email",
+        "phone": "Phone",
+        "joined": "Joined {{date}}",
+        "noEmail": "No email on file",
+        "noPhone": "No phone on file"
+      },
+      "money": {
+        "heading": "Balance",
+        "errors": {
+          "loadFailed": "Couldn't load this member's balance."
+        }
+      },
+      "loans": {
+        "heading": "Current loans",
+        "subtitle": "{{count}} active",
+        "tableCaption": "Current loans for this member",
+        "columns": {
+          "title": "Title",
+          "barcode": "Barcode",
+          "due": "Due",
+          "actions": "Actions"
+        },
+        "empty": {
+          "headline": "No active loans",
+          "message": "Nothing checked out to this member right now."
+        },
+        "errors": {
+          "loadFailed": "Couldn't load this member's loans."
+        }
+      },
+      "holds": {
+        "heading": "Hold queue",
+        "subtitle": "{{count}} holds",
+        "tableCaption": "Holds placed by this member",
+        "columns": {
+          "title": "Title",
+          "position": "Queue",
+          "expires": "Expires",
+          "status": "Status"
+        },
+        "empty": {
+          "headline": "No holds",
+          "message": "This member has no holds on record."
+        },
+        "errors": {
+          "loadFailed": "Couldn't load this member's holds."
+        }
+      },
+      "fines": {
+        "heading": "Fine history",
+        "subtitle": "{{count}} fines",
+        "tableCaption": "Fine history for this member",
+        "columns": {
+          "reason": "Reason",
+          "amount": "Amount",
+          "balance": "Balance",
+          "status": "Status",
+          "created": "Created"
+        },
+        "empty": {
+          "headline": "No fines",
+          "message": "This member has a clean fine history."
+        },
+        "errors": {
+          "loadFailed": "Couldn't load this member's fines."
+        }
+      }
     }
   },
   "audit": {

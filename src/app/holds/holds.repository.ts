@@ -46,6 +46,17 @@ export class HoldsRepository {
     };
   }
 
+  /** Every hold for the member-detail page — queue positions plus history, oldest first. */
+  async listByMember(memberId: string): Promise<{ rows: HoldListItem[]; error: string | null }> {
+    const { data, error } = await this.supabase
+      .from('holds')
+      .select(HOLD_SELECT)
+      .eq('member_id', memberId)
+      .order('created_at', { ascending: true });
+
+    return { rows: (data as HoldJoinRow[] | null) ?? [], error: error?.message ?? null };
+  }
+
   /** Queue order is enforced server-side: the RPC takes the title, never a hold id. */
   async markReady(
     titleId: string,

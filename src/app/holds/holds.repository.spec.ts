@@ -115,6 +115,46 @@ describe('HoldsRepository', () => {
     expect(eqCalled).toBe(false);
   });
 
+  it("lists a member's holds oldest first with title and copy joined", async () => {
+    const fromCalls: string[] = [];
+    const orderCalls: [string, { ascending: boolean }][] = [];
+    const eqCalls: [string, unknown][] = [];
+    const client = {
+      from: (table: string) => {
+        fromCalls.push(table);
+        const builder = createQueryBuilder(() => ({ data: [holdRow], error: null }));
+        const originalOrder = builder['order'] as (
+          c: string,
+          o: { ascending: boolean },
+        ) => unknown;
+        builder['order'] = (column: string, options: { ascending: boolean }) => {
+          orderCalls.push([column, options]);
+          return originalOrder(column, options);
+        };
+        const originalEq = builder['eq'] as (c: string, v: unknown) => unknown;
+        builder['eq'] = (column: string, value: unknown) => {
+          eqCalls.push([column, value]);
+          return originalEq(column, value);
+        };
+        return builder;
+      },
+      rpc: async () => ({ data: null, error: null }),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [HoldsRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(HoldsRepository);
+    const result = await repo.listByMember('m1');
+
+    expect(fromCalls).toEqual(['holds']);
+    expect(eqCalls).toEqual([['member_id', 'm1']]);
+    expect(orderCalls).toEqual([['created_at', { ascending: true }]]);
+    expect(result.error).toBeNull();
+    expect(result.rows[0]?.title?.title).toBe('Dune');
+  });
+
   it('marks ready with the title and copy barcode — never a hold id', async () => {
     const rpcCalls: unknown[] = [];
     const client = {
