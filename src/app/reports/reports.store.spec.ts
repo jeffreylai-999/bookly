@@ -21,12 +21,10 @@ function setup(repoOverrides: Record<string, unknown> = {}) {
       {
         provide: ReportsRepository,
         useValue: {
-          getSettings: vi
-            .fn()
-            .mockResolvedValue({
-              settings: { currency: 'USD', defaultRangeDays: 14 },
-              error: null,
-            }),
+          getSettings: vi.fn().mockResolvedValue({
+            settings: { currency: 'USD', defaultRangeDays: 14 },
+            error: null,
+          }),
           loadAll: vi.fn().mockResolvedValue({ data: emptyData, error: null }),
           ...repoOverrides,
         },
@@ -94,6 +92,16 @@ describe('ReportsStore', () => {
     await store.setRange(30);
 
     expect(store.error()).toBe('load_failed');
+  });
+
+  it('catches a rejected loadAll (e.g. a network-level failure) instead of throwing', async () => {
+    const loadAll = vi.fn().mockRejectedValue(new Error('network down'));
+    const store = setup({ loadAll });
+
+    await expect(store.load()).resolves.toBeUndefined();
+
+    expect(store.error()).toBe('unexpected');
+    expect(store.loading()).toBe(false);
   });
 
   it('ignores a superseded response when range changes twice in flight', async () => {

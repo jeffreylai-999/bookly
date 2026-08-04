@@ -18,9 +18,9 @@ import { downloadCsv, toCsv } from './csv';
 import { ReportsStore } from './reports.store';
 import {
   RANGE_DAYS_OPTIONS,
+  isRangeDays,
   type DeadStockRow,
   type HighDemandRow,
-  type RangeDays,
 } from './reports.types';
 
 /** Chart palette (design tokens `--color-chart-*` in src/styles.css). */
@@ -497,7 +497,9 @@ export class Reports implements OnInit {
 
   protected async onRangeChange(value: string | undefined): Promise<void> {
     if (!value) return;
-    await this.store.setRange(Number(value) as RangeDays);
+    const days = Number(value);
+    if (!isRangeDays(days)) return;
+    await this.store.setRange(days);
     this.toastOnError();
   }
 

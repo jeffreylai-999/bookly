@@ -160,6 +160,18 @@ describe('Reports', () => {
     expect(store.setRange).toHaveBeenCalledWith(7);
   });
 
+  it('ignores a range change with a value outside 7/14/30', async () => {
+    const { store, fixture } = await setup();
+
+    // ui-segmented only ever emits its own option values, but the handler
+    // still guards against a tampered/unexpected DOM event value.
+    await (
+      fixture.componentInstance as unknown as { onRangeChange(v?: string): Promise<void> }
+    ).onRangeChange('15');
+
+    expect(store.setRange).not.toHaveBeenCalled();
+  });
+
   it('shows an alert and toasts when the store reports a load error', async () => {
     const { toast, el } = await setup({ error: signal('boom').asReadonly() });
 

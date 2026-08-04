@@ -9,10 +9,12 @@ import type { EChartsCoreOption } from 'echarts/core';
  * `afterNextRender` so the server-rendered markup is the placeholder itself,
  * not an empty host waiting for a callback that never runs on the server.
  *
- * The chart is `aria-hidden`: a canvas has no accessible text representation
- * of its data (WCAG 1.4.1, same rationale as `ui-bar-chart`), so every caller
- * renders its own visually-hidden data table alongside this component rather
- * than relying on `chartLabel` alone to carry the numbers.
+ * The rendered chart is `role="img"` with `chartLabel` as its `aria-label` —
+ * a single named image, not a data table. A canvas has no accessible text
+ * representation of the numbers behind it (WCAG 1.4.1, same rationale as
+ * `ui-bar-chart`), so every caller renders its own visually-hidden data
+ * table alongside this component rather than relying on `chartLabel` alone
+ * to carry them.
  */
 @Component({
   selector: 'ui-echart',

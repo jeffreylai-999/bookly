@@ -83,6 +83,13 @@ export class ReportsStore {
       this.newMemberGrowthState.set(data.newMemberGrowth);
       this.peakHoursState.set(data.peakHours);
       this.genreBreakdownState.set(data.genreBreakdown);
+    } catch {
+      // The repository resolves { data, error } for expected API failures;
+      // this only catches the unexpected (e.g. a network-level rejection
+      // from one of the seven parallel RPC calls in Promise.all).
+      if (generation === this.loadGeneration) {
+        this.errorState.set('unexpected');
+      }
     } finally {
       if (generation === this.loadGeneration) {
         this.loadingState.set(false);

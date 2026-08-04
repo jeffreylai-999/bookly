@@ -93,11 +93,17 @@ begin
     t.title,
     t.author,
     t.genre,
-    count(c.id) filter (where c.status <> 'retired')::integer as lendable_copies
+    -- Lendable = could be handed to a member right now (available, or on the
+    -- hold shelf awaiting pickup). lost/damaged/retired copies cannot be
+    -- checked out (the checkout RPC's copy-status matrix), so counting them
+    -- here would misclassify a title as "dead stock" when it actually has no
+    -- stock capable of being idle in the first place.
+    count(c.id) filter (where c.status in ('available', 'on_hold_shelf'))::integer
+      as lendable_copies
   from public.titles t
   join public.copies c on c.title_id = t.id
   group by t.id, t.title, t.author, t.genre
-  having count(c.id) filter (where c.status <> 'retired') > 0
+  having count(c.id) filter (where c.status in ('available', 'on_hold_shelf')) > 0
     and not exists (
       select 1
       from public.loans l

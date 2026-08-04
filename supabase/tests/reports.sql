@@ -57,13 +57,16 @@ values
 -- Titles: Alpha (high demand, 2 checkouts in range + 1 waiting hold),
 -- Beta (1 checkout in range, tie-break loser), Gamma (checkout only OUTSIDE
 -- range — dead stock inside a 7-day range despite having loan history),
--- Delta (never loaned at all — dead stock everywhere).
+-- Delta (never loaned at all — dead stock everywhere), Epsilon (never
+-- loaned, but its only copy is damaged — NOT dead stock: nothing lendable
+-- can be sitting idle).
 insert into public.titles (id, title, author, genre)
 values
   ('f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'Report Alpha', 'Author A', 'Sci-fi'),
   ('f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'Report Beta', 'Author B', 'Fiction'),
   ('f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb3', 'Report Gamma', 'Author C', 'Sci-fi'),
-  ('f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4', 'Report Delta', 'Author D', 'Fiction');
+  ('f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4', 'Report Delta', 'Author D', 'Fiction'),
+  ('f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb5', 'Report Epsilon', 'Author E', 'Mystery');
 
 -- Fixtures on flow-critical tables require service_role (RLS/grants revoke
 -- direct writes from authenticated — ADR-0001).
@@ -77,7 +80,10 @@ values
   ('f3cccccc-cccc-cccc-cccc-cccccccccc04', 'f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4', 'BK-RPT-DELTA-1', 'available'),
   -- Retired copy on a title with no other copies must NOT show up as dead
   -- stock (no lendable copy).
-  ('f3cccccc-cccc-cccc-cccc-cccccccccc05', 'f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4', 'BK-RPT-DELTA-2', 'retired');
+  ('f3cccccc-cccc-cccc-cccc-cccccccccc05', 'f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4', 'BK-RPT-DELTA-2', 'retired'),
+  -- Epsilon's only copy is damaged — not checkoutable, so not "lendable"
+  -- even though it's not retired either.
+  ('f3cccccc-cccc-cccc-cccc-cccccccccc06', 'f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb5', 'BK-RPT-EPSILON-1', 'damaged');
 
 -- Alpha: 2 checkouts in range (today 09:00, 2 days ago 14:00) + returned so
 -- the copy is reusable; also a waiting hold for the high-demand tie-break.
@@ -209,7 +215,9 @@ end $$;
 -- report_dead_stock: at 7 days, Gamma (checkout was 20 days ago) IS dead
 -- stock again despite having loan history; Delta (never loaned, one
 -- lendable copy despite the retired second copy) is dead stock at every
--- range; Alpha/Beta (checked out today) are never dead stock.
+-- range; Alpha/Beta (checked out today) are never dead stock. Epsilon
+-- (never loaned, but its only copy is damaged) is NEVER dead stock — it has
+-- no copy capable of being idle in the first place.
 -- ---------------------------------------------------------------------------
 -- Scoped to this fixture's own titles: the base seed (supabase/seed.sql)
 -- ships titles with no loan history at all, which are legitimately dead
@@ -233,16 +241,28 @@ begin
   end if;
 end $$;
 
--- Delta's lendable_copies excludes the retired second copy.
+-- Delta's lendable_copies excludes the retired second copy; Epsilon has zero
+-- lendable copies (damaged is not "available"/"on_hold_shelf") and so is
+-- absent from the result set entirely (the `having ... > 0` clause), not
+-- merely reported with a zero count.
 do $$
 declare
   v_count integer;
+  v_epsilon_present boolean;
 begin
   select lendable_copies into v_count
   from public.report_dead_stock(30)
   where title_id = 'f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb4';
   if v_count <> 1 then
     raise exception 'expected 1 lendable copy for Delta (retired copy excluded), got %', v_count;
+  end if;
+
+  select exists (
+    select 1 from public.report_dead_stock(30)
+    where title_id = 'f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb5'
+  ) into v_epsilon_present;
+  if v_epsilon_present then
+    raise exception 'Epsilon (damaged-only copy) must not appear as dead stock';
   end if;
 end $$;
 
