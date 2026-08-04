@@ -75,7 +75,12 @@ export class MemberDetailStore {
 
   async init(memberId: string): Promise<void> {
     this.memberIdState.set(memberId);
-    this.notFoundState.set(false);
+    // Clears the previous member's data synchronously, before any await: a
+    // route change reuses this component/store instance, and without this a
+    // navigation between two member-detail pages would render the old
+    // member's panels (and let Renew/Suspend fire against their stale rows)
+    // until the new fetches resolve.
+    this.resetData();
     await Promise.all([
       this.loadMember(memberId),
       this.loadLoans(memberId),
@@ -116,6 +121,20 @@ export class MemberDetailStore {
     } finally {
       this.renewingIdState.set(null);
     }
+  }
+
+  private resetData(): void {
+    this.memberState.set(null);
+    this.memberErrorState.set(null);
+    this.notFoundState.set(false);
+    this.loansState.set([]);
+    this.loansErrorState.set(null);
+    this.holdsState.set([]);
+    this.holdsErrorState.set(null);
+    this.finesState.set([]);
+    this.finesErrorState.set(null);
+    this.moneyState.set(null);
+    this.moneyErrorState.set(null);
   }
 
   private async loadMember(memberId: string): Promise<void> {

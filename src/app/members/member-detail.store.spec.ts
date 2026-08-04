@@ -161,6 +161,44 @@ describe('MemberDetailStore', () => {
     expect(store.currency()).toBe('EUR');
   });
 
+  it("clears the previous member's data immediately when navigating to a new one", async () => {
+    const member2 = memberRow({ id: 'm2', name: 'Grace Hopper' });
+    let resolveGetById!: (value: { row: MemberListItem | null; error: string | null }) => void;
+    const getById = vi
+      .fn()
+      .mockResolvedValueOnce({ row: memberRow(), error: null })
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveGetById = resolve)));
+    const store = setup({
+      members: { getById },
+      circulation: {
+        listActiveLoansByMember: vi.fn().mockResolvedValue({ rows: [loanRow()], error: null }),
+        getMemberMoney: vi
+          .fn()
+          .mockResolvedValue({ row: { balance: 5, projected: 1.5 }, error: null }),
+      },
+      holds: { listByMember: vi.fn().mockResolvedValue({ rows: [holdRow()], error: null }) },
+      fines: { listByMember: vi.fn().mockResolvedValue({ rows: [fineRow()], error: null }) },
+    });
+    await store.init('m1');
+    expect(store.member()?.name).toBe('Ada Lovelace');
+
+    // Navigating to a second member reuses this store instance (same routed
+    // component). Before the second getById resolves, the first member's
+    // panels — and any action a click could fire against them — must
+    // already be gone, not lingering until the new fetch completes.
+    const secondInit = store.init('m2');
+    expect(store.member()).toBeNull();
+    expect(store.loans()).toEqual([]);
+    expect(store.holds()).toEqual([]);
+    expect(store.fines()).toEqual([]);
+    expect(store.money()).toBeNull();
+
+    resolveGetById({ row: member2, error: null });
+    await secondInit;
+
+    expect(store.member()).toEqual(member2);
+  });
+
   it('flags a missing member without treating it as a load error', async () => {
     const store = setup({
       members: { getById: vi.fn().mockResolvedValue({ row: null, error: null }) },
