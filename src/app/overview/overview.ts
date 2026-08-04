@@ -20,6 +20,27 @@ import {
 import { OverviewStore } from './overview.store';
 import { activityIcon, activityTone } from './overview.types';
 
+/** Matches FinesList's `statValue` convention: a plain em dash, not a bare
+ *  0 / $0.00 that would read as real data instead of a failed load. */
+const UNAVAILABLE = '—';
+
+/**
+ * `checkout_trend.day` comes back as a date-only `YYYY-MM-DD` string. Angular's
+ * `DatePipe` already special-cases that exact shape as a local calendar date
+ * rather than parsing it as a UTC instant (see `toDate()` in
+ * `@angular/common`), so this isn't patching a live bug in the trend label
+ * today. It's kept explicit anyway — building the Date from its own y/m/d
+ * components, the same technique as `audit.repository.ts`'s
+ * `localDayStartIso` — rather than leaning on that internal, undocumented
+ * Angular behavior, which a future format string or Angular version bump
+ * could stop hitting. Exported so its exact contract (a *local* midnight for
+ * the given calendar date) is unit-tested directly.
+ */
+export function parseViewDate(ymd: string): Date {
+  const [year, month, day] = ymd.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
 @Component({
   selector: 'app-overview',
   providers: [OverviewStore, CurrencyPipe, DatePipe],
@@ -93,20 +114,22 @@ import { activityIcon, activityTone } from './overview.types';
           </a>
         </div>
 
-        <!-- Decision stat cards. -->
+        <!-- Decision stat cards. Each falls back to an explicit "unavailable"
+             placeholder on its own load error — never a bare 0 / $0.00, which
+             would look like real data instead of a failed read. -->
         <div class="grid gap-4 sm:grid-cols-3">
           <ui-kpi-card
             [label]="'overview.stats.overdueCount' | transloco"
-            [value]="store.overdueCount()"
+            [value]="overdueCountValue()"
             [hero]="true"
           />
           <ui-kpi-card
             [label]="'overview.stats.holdsWaiting' | transloco"
-            [value]="store.holdsWaitingCount()"
+            [value]="holdsWaitingCountValue()"
           />
           <ui-kpi-card
             [label]="'overview.stats.finesOutstanding' | transloco"
-            [value]="money(store.finesOutstanding())"
+            [value]="finesOutstandingValue()"
           />
         </div>
 
@@ -245,9 +268,21 @@ export class Overview implements OnInit {
   protected readonly activityIcon = activityIcon;
   protected readonly activityTone = activityTone;
 
+  protected readonly overdueCountValue = computed<string | number>(() =>
+    this.store.topOverdueError() ? UNAVAILABLE : this.store.overdueCount(),
+  );
+
+  protected readonly holdsWaitingCountValue = computed<string | number>(() =>
+    this.store.holdsWaitingCountError() ? UNAVAILABLE : this.store.holdsWaitingCount(),
+  );
+
+  protected readonly finesOutstandingValue = computed<string>(() =>
+    this.store.finesSummaryError() ? UNAVAILABLE : this.money(this.store.finesOutstanding()),
+  );
+
   protected readonly trendSeries = computed<BarPoint[]>(() =>
     this.store.trend().map((point) => ({
-      label: point.day ? (this.datePipe.transform(point.day, 'EEE') ?? '') : '',
+      label: point.day ? (this.datePipe.transform(parseViewDate(point.day), 'EEE') ?? '') : '',
       value: point.checkouts ?? 0,
     })),
   );

@@ -27,7 +27,7 @@ import type {
   OverdueLoan,
 } from '../circulation/circulation.types';
 import type { HoldListItem } from '../holds/holds.types';
-import { Overview } from './overview';
+import { Overview, parseViewDate } from './overview';
 import { OverviewStore } from './overview.store';
 
 const holdRow: HoldListItem = {
@@ -231,6 +231,76 @@ describe('Overview', () => {
     );
     // Unrelated section keeps rendering.
     expect(host.textContent ?? '').toContain('Dune');
+  });
+
+  it('shows an unavailable placeholder for a stat card on its own load error, never a bare 0', async () => {
+    const { fixture } = await setup({
+      topOverdueError: signal('boom').asReadonly(),
+      holdsWaitingCountError: signal('boom').asReadonly(),
+      finesSummaryError: signal('boom').asReadonly(),
+    });
+    const values = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="kpi-value"]'),
+    ].map((el) => el.textContent?.trim());
+
+    // Real defaults (0, 3, $42.50) never render once their section errored —
+    // a bare 0 / $0.00 there would look like real data instead of a failed read.
+    expect(values).toEqual(['—', '—', '—']);
+  });
+
+  it('still shows the real stat values when nothing errored', async () => {
+    const { fixture } = await setup();
+    const values = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="kpi-value"]'),
+    ].map((el) => el.textContent?.trim());
+
+    expect(values).toEqual(['1', '3', '$42.50']);
+  });
+
+  it('renders the checkout trend for the day the store returned, in a negative-offset timezone', async () => {
+    vi.stubEnv('TZ', 'America/New_York');
+    try {
+      const { fixture } = await setup({
+        trend: signal<CheckoutTrendPoint[]>([{ day: '2026-08-03', checkouts: 5 }]).asReadonly(),
+      });
+      const host = fixture.nativeElement as HTMLElement;
+
+      // 2026-08-03 is a Monday. A UTC-instant parse of that date-only string
+      // would roll it back to Sunday here.
+      expect(host.textContent ?? '').toContain('Mon');
+      expect(host.textContent ?? '').not.toContain('Sun');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  describe('parseViewDate', () => {
+    it('builds a local midnight for the given calendar date, not a UTC instant', () => {
+      const date = parseViewDate('2026-08-03');
+
+      // Asserting the *local* getters (not getUTC*) is the point: a UTC-instant
+      // parse of a date-only string rolls this back to Aug 2 in any
+      // negative-offset timezone, which would fail this exact assertion there.
+      expect(date.getFullYear()).toBe(2026);
+      expect(date.getMonth()).toBe(7);
+      expect(date.getDate()).toBe(3);
+      expect(date.getHours()).toBe(0);
+    });
+
+    it('stays on the same calendar date in a negative-offset timezone', () => {
+      // Pinned via vi.stubEnv rather than process.env directly: tsconfig.spec.json
+      // scopes "types" to vitest/globals only, so `process` isn't declared there.
+      vi.stubEnv('TZ', 'America/New_York');
+      try {
+        const date = parseViewDate('2026-08-03');
+        expect(date.getFullYear()).toBe(2026);
+        expect(date.getMonth()).toBe(7);
+        expect(date.getDate()).toBe(3);
+        expect(date.getHours()).toBe(0);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
   });
 
   it('has no serious accessibility violations', async () => {
