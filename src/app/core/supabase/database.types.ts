@@ -40,12 +40,14 @@ export type Database = {
           damaged_fee_default: number
           default_locale: string
           default_report_range_days: number
+          expire_holds_last_run_date: string | null
           fine_block_threshold: number
           id: boolean
           lost_fee_default: number
           notify_on_hold_ready: boolean
           notify_on_overdue: boolean
           notify_on_payment: boolean
+          notify_overdue_last_run_date: string | null
           timezone: string
           updated_at: string
         }
@@ -54,12 +56,14 @@ export type Database = {
           damaged_fee_default?: number
           default_locale?: string
           default_report_range_days?: number
+          expire_holds_last_run_date?: string | null
           fine_block_threshold?: number
           id?: boolean
           lost_fee_default?: number
           notify_on_hold_ready?: boolean
           notify_on_overdue?: boolean
           notify_on_payment?: boolean
+          notify_overdue_last_run_date?: string | null
           timezone?: string
           updated_at?: string
         }
@@ -68,12 +72,14 @@ export type Database = {
           damaged_fee_default?: number
           default_locale?: string
           default_report_range_days?: number
+          expire_holds_last_run_date?: string | null
           fine_block_threshold?: number
           id?: boolean
           lost_fee_default?: number
           notify_on_hold_ready?: boolean
           notify_on_overdue?: boolean
           notify_on_payment?: boolean
+          notify_overdue_last_run_date?: string | null
           timezone?: string
           updated_at?: string
         }
@@ -735,6 +741,11 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      cron_local_run_date: {
+        Args: { p_last_run: string; p_now: string; p_timezone: string }
+        Returns: string
+      }
+      expire_holds: { Args: { p_now?: string }; Returns: undefined }
       is_admin: { Args: never; Returns: boolean }
       log_audit: {
         Args: {
@@ -765,6 +776,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      notify_overdue: { Args: { p_now?: string }; Returns: undefined }
       place_hold: {
         Args: { p_member_id: string; p_title_id: string }
         Returns: {
