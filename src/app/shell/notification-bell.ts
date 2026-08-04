@@ -121,11 +121,18 @@ export class NotificationBell implements OnInit {
     return count > 9 ? '9+' : String(count);
   });
 
+  /**
+   * `translate()` reads the active language off a plain BehaviorSubject
+   * (`getActiveLang()`), not a signal, so it registers no dependency of its
+   * own — reading `activeLang()` here is what makes this `computed` rerun
+   * (and the aria-label re-render) on a language switch.
+   */
   protected readonly bellLabel = computed(() => {
+    const lang = this.transloco.activeLang();
     const count = this.unreadCount();
     return count > 0
-      ? this.transloco.translate('notifications.bellLabelUnread', { count })
-      : this.transloco.translate('notifications.bellLabel');
+      ? this.transloco.translate('notifications.bellLabelUnread', { count }, lang)
+      : this.transloco.translate('notifications.bellLabel', undefined, lang);
   });
 
   ngOnInit(): void {
@@ -138,7 +145,11 @@ export class NotificationBell implements OnInit {
 
   protected onDocumentClick(event: MouseEvent): void {
     if (!this.open()) return;
-    if (!this.elementRef.nativeElement.contains(event.target as Node)) {
+    const target = event.target;
+    // `event.target` is typed `EventTarget | null` — a plain cast to `Node`
+    // would lie about that. A target that isn't a Node can't be "inside" the
+    // host element either way, so it's treated the same as outside.
+    if (!(target instanceof Node) || !this.elementRef.nativeElement.contains(target)) {
       this.open.set(false);
     }
   }

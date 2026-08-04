@@ -1,5 +1,9 @@
 import { TestBed } from '@angular/core/testing';
-import { provideTranslocoMissingHandler, TranslocoTestingModule } from '@jsverse/transloco';
+import {
+  provideTranslocoMissingHandler,
+  TranslocoService,
+  TranslocoTestingModule,
+} from '@jsverse/transloco';
 import axe from 'axe-core';
 import {
   AlertCircle,
@@ -142,6 +146,24 @@ describe('NotificationBell', () => {
     expect(el.querySelector('[role="region"]')).toBeNull();
   });
 
+  it('treats a non-Node click target as outside and closes the dropdown', async () => {
+    const stub = new NotificationServiceStub();
+    stub.rows = [holdReadyRow()];
+    const fixture = await setup(stub);
+    const el = fixture.nativeElement as HTMLElement;
+
+    el.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    fixture.detectChanges();
+    expect(el.querySelector('[role="region"]')).not.toBeNull();
+
+    const event = new MouseEvent('click', { bubbles: true });
+    Object.defineProperty(event, 'target', { value: null });
+    document.dispatchEvent(event);
+    fixture.detectChanges();
+
+    expect(el.querySelector('[role="region"]')).toBeNull();
+  });
+
   it('closes on Escape', async () => {
     const stub = new NotificationServiceStub();
     stub.rows = [holdReadyRow()];
@@ -200,6 +222,41 @@ describe('NotificationBell', () => {
     await setup(stub);
 
     expect(stub.init).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-renders the bell aria-label when the active language changes', async () => {
+    const stub = new NotificationServiceStub();
+    const xx = {
+      ...en,
+      notifications: { ...en.notifications, bellLabel: 'Notifications (XX)' },
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [
+        NotificationBell,
+        TranslocoTestingModule.forRoot({
+          langs: { en, xx },
+          translocoConfig: { availableLangs: ['en', 'xx'], defaultLang: 'en' },
+          preloadLangs: true,
+        }),
+      ],
+      providers: [
+        provideTranslocoMissingHandler(ThrowingMissingKeyHandler),
+        { provide: NotificationService, useValue: stub },
+        icons,
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(NotificationBell);
+    await fixture.whenStable();
+    const button = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
+
+    expect(button.getAttribute('aria-label')).toBe('Notifications');
+
+    TestBed.inject(TranslocoService).setActiveLang('xx');
+    fixture.detectChanges();
+
+    expect(button.getAttribute('aria-label')).toBe('Notifications (XX)');
   });
 
   it('has no serious AXE violations with the dropdown open', async () => {

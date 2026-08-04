@@ -153,6 +153,24 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
+-- The unread-scan partial index exists, so the bell's unread-count query and
+-- mark-all-read's update stay proportional to the unread backlog as the
+-- unbounded, unpruned table grows.
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if not exists (
+    select 1 from pg_indexes
+    where schemaname = 'public'
+      and tablename = 'notifications'
+      and indexname = 'notifications_unread_idx'
+      and indexdef like '%WHERE (read_at IS NULL)%'
+  ) then
+    raise exception 'expected a partial index on notifications for read_at IS NULL';
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
 -- mark_ready stamps member_name + title into detail — the bell renders a
 -- localized message without an extra client-side join.
 -- ---------------------------------------------------------------------------

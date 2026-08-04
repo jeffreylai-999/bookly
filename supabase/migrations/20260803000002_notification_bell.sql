@@ -21,6 +21,16 @@ create policy notifications_update_read_at
 
 alter publication supabase_realtime add table public.notifications;
 
+-- Unread scans (the bell's unread-count query, and mark-all-read's own
+-- `where read_at is null`) are the two hot paths against this table, and it
+-- has no retention/pruning (spec §5, same as audit_log) — a plain btree on
+-- read_at would keep growing with every read row, forever. Indexing only the
+-- unread rows keeps both operations proportional to the unread backlog, not
+-- to the table's full history.
+create index notifications_unread_idx
+  on public.notifications (created_at)
+  where read_at is null;
+
 -- ---------------------------------------------------------------------------
 -- Messages carry data, not text (spec §10): the bell renders localized copy
 -- client-side from `type` + `detail`, so every notification needs the names
