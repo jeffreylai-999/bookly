@@ -17,8 +17,11 @@ export type AppSettingsIdentityIsGenerated = AssertTrue<
  * Client-safe settings writes. Identity/bookkeeping columns are excluded to
  * match the column-level GRANTs: `id`/`created_at` on member_types are
  * server-assigned, and on app_settings `id` is the constant singleton pk while
- * `updated_at` is trigger-maintained.
+ * `updated_at` and the cron last-run dates are trigger/job-maintained.
  */
 export type MemberTypesClientInsert = Omit<TablesInsert<'member_types'>, 'id' | 'created_at'>;
 export type MemberTypesClientUpdate = Omit<TablesUpdate<'member_types'>, 'id' | 'created_at'>;
-export type AppSettingsClientUpdate = Omit<TablesUpdate<'app_settings'>, 'id' | 'updated_at'>;
+export type AppSettingsClientUpdate = Omit<
+  TablesUpdate<'app_settings'>,
+  'id' | 'updated_at' | 'expire_holds_last_run_date' | 'notify_overdue_last_run_date'
+>;

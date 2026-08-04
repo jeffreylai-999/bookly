@@ -34,6 +34,8 @@ const sampleSettings: AppSettings = {
   notify_on_overdue: true,
   notify_on_payment: true,
   default_report_range_days: 14,
+  expire_holds_last_run_date: null,
+  notify_overdue_last_run_date: null,
   updated_at: '2026-01-01T00:00:00Z',
 };
 
