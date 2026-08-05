@@ -277,7 +277,10 @@ declare
   v_second record;
   v_count integer;
 begin
-  select count(*) into v_count from public.report_high_demand(7);
+  -- Scoped to this fixture's own titles: seed titles have no loans and will
+  -- not appear, but unrelated loan data from other concurrent sessions could
+  -- otherwise cause a spurious count mismatch.
+  select count(*) into v_count from public.report_high_demand(7) where title like 'Report %';
   if v_count <> 2 then
     raise exception 'expected 2 titles in high demand at 7 days, got %', v_count;
   end if;

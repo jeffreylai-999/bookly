@@ -155,7 +155,7 @@ begin
     t.title,
     t.author,
     count(l.id)::integer as checkout_count,
-    coalesce(h.waiting_count, 0)::integer as waiting_holds
+    coalesce(max(h.waiting_count), 0)::integer as waiting_holds
   from public.titles t
   join public.copies c on c.title_id = t.id
   join public.loans l
@@ -167,7 +167,7 @@ begin
     where status = 'waiting'
     group by holds.title_id
   ) h on h.title_id = t.id
-  group by t.id, t.title, t.author, h.waiting_count
+  group by t.id, t.title, t.author
   order by checkout_count desc, waiting_holds desc, t.title
   limit 10;
 end;
