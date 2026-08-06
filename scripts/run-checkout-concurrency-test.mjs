@@ -14,8 +14,7 @@ const COPY_ID = 'c2cccccc-cccc-cccc-cccc-cccccccccc01';
 const BARCODE = 'BK-CONC-001';
 
 function fail(message) {
-  process.stderr.write(`${message}\n`);
-  process.exit(1);
+  throw new Error(message);
 }
 
 function psql(container, sql, { ignoreStatus = false } = {}) {
@@ -88,13 +87,36 @@ end $$;
   });
 }
 
+function cleanupConcurrencyFixture(container, { ignoreStatus = false } = {}) {
+  return psql(
+    container,
+    `
+delete from public.audit_log
+where action = 'loan.checkout'
+  and detail -> 'copy_ids' ? '${COPY_ID}';
+delete from public.loans where copy_id = '${COPY_ID}';
+delete from public.copies where id = '${COPY_ID}';
+delete from public.titles where id = '${TITLE_ID}';
+delete from public.members where id = '${MEMBER_ID}';
+delete from public.profiles where id = '${STAFF_ID}';
+delete from auth.users where id = '${STAFF_ID}';
+drop table if exists public._checkout_conc_barrier;
+drop table if exists public._checkout_conc_results;
+`,
+    { ignoreStatus },
+  );
+}
+
 const container = resolveContainer();
 const runToken = randomUUID();
 
-// Setup fixtures + barrier (committed).
-psql(
-  container,
-  `
+try {
+  cleanupConcurrencyFixture(container);
+
+  // Setup fixtures + barrier (committed).
+  psql(
+    container,
+    `
 drop table if exists public._checkout_conc_barrier;
 drop table if exists public._checkout_conc_results;
 
@@ -139,50 +161,52 @@ insert into public.titles (id, title, author, genre)
 values ('${TITLE_ID}', 'Conc Title', 'Author', 'Fiction')
 on conflict (id) do nothing;
 
-delete from public.loans where copy_id = '${COPY_ID}';
-delete from public.copies where id = '${COPY_ID}';
 insert into public.copies (id, title_id, barcode, status)
 values ('${COPY_ID}', '${TITLE_ID}', '${BARCODE}', 'available');
 `,
-);
-
-const workers = [runWorker(container, 1), runWorker(container, 2)];
-
-// Wait until both sessions are sitting in the barrier loop.
-let spunUp = false;
-for (let i = 0; i < 100; i++) {
-  const probe = psql(
-    container,
-    `select count(*)::int as n
-     from pg_stat_activity
-     where state = 'active'
-       and query ilike '%_checkout_conc_barrier%';`,
   );
-  const n = Number((probe.stdout.match(/^\s*(\d+)\s*$/m) ?? [])[1] ?? 0);
-  if (n >= 2) {
-    spunUp = true;
-    break;
+
+  const workers = [runWorker(container, 1), runWorker(container, 2)];
+
+  // Wait until both sessions are sitting in the barrier loop.
+  let spunUp = false;
+  for (let i = 0; i < 100; i++) {
+    const probe = psql(
+      container,
+      `select count(*)::int as n
+       from pg_stat_activity
+       where state = 'active'
+         and query ilike '%_checkout_conc_barrier%';`,
+    );
+    const n = Number((probe.stdout.match(/^\s*(\d+)\s*$/m) ?? [])[1] ?? 0);
+    if (n >= 2) {
+      spunUp = true;
+      break;
+    }
+    spawnSync('sleep', ['0.05']);
   }
-  spawnSync('sleep', ['0.05']);
-}
 
-if (!spunUp) {
-  // Still release the barrier — workers may already be waiting with idle-in-transaction.
-  process.stderr.write('warning: could not confirm both workers via pg_stat_activity; releasing barrier anyway\n');
-}
-
-psql(container, `update public._checkout_conc_barrier set go = true where id = 1;`);
-
-const results = await Promise.all(workers);
-for (const r of results) {
-  if (r.code !== 0) {
-    fail(`worker ${r.workerId} failed (exit ${r.code}):\n${r.stderr}\n${r.stdout}`);
+  if (!spunUp) {
+    // Still release the barrier — workers may already be waiting with idle-in-transaction.
+    process.stderr.write(
+      'warning: could not confirm both workers via pg_stat_activity; releasing barrier anyway\n',
+    );
   }
-}
 
-const summary = psql(
-  container,
-  `
+  psql(container, `update public._checkout_conc_barrier set go = true where id = 1;`);
+
+  const results = await Promise.all(workers);
+  for (const result of results) {
+    if (result.code !== 0) {
+      fail(
+        `worker ${result.workerId} failed (exit ${result.code}):\n${result.stderr}\n${result.stdout}`,
+      );
+    }
+  }
+
+  const summary = psql(
+    container,
+    `
 select
   (select count(*) from public._checkout_conc_results where ok) as wins,
   (select count(*) from public._checkout_conc_results where not ok) as losses,
@@ -190,28 +214,37 @@ select
   (select status::text from public.copies where id = '${COPY_ID}') as copy_status,
   (select string_agg(coalesce(err, 'ok'), ' | ' order by worker_id) from public._checkout_conc_results) as detail;
 `,
-);
-
-process.stdout.write(summary.stdout);
-
-const wins = Number((summary.stdout.match(/^\s*(\d+)\s+\|\s+(\d+)\s+\|\s+(\d+)/m) ?? [])[1] ?? -1);
-const losses = Number((summary.stdout.match(/^\s*(\d+)\s+\|\s+(\d+)\s+\|\s+(\d+)/m) ?? [])[2] ?? -1);
-const activeLoans = Number((summary.stdout.match(/^\s*(\d+)\s+\|\s+(\d+)\s+\|\s+(\d+)/m) ?? [])[3] ?? -1);
-const copyStatus = (summary.stdout.match(/\|\s+(on_loan|available)\s+\|/m) ?? [])[1];
-
-// Cleanup barrier tables (keep domain rows — harmless in local DB).
-psql(
-  container,
-  `
-drop table if exists public._checkout_conc_barrier;
-drop table if exists public._checkout_conc_results;
-`,
-);
-
-if (wins !== 1 || losses !== 1 || activeLoans !== 1 || copyStatus !== 'on_loan') {
-  fail(
-    `concurrency invariant failed: wins=${wins} losses=${losses} active_loans=${activeLoans} copy=${copyStatus}`,
   );
-}
 
-process.stdout.write('checkout concurrency: exactly one winner\n');
+  process.stdout.write(summary.stdout);
+
+  const wins = Number(
+    (summary.stdout.match(/^\s*(\d+)\s+\|\s+(\d+)\s+\|\s+(\d+)/m) ?? [])[1] ?? -1,
+  );
+  const losses = Number(
+    (summary.stdout.match(/^\s*(\d+)\s+\|\s+(\d+)\s+\|\s+(\d+)/m) ?? [])[2] ?? -1,
+  );
+  const activeLoans = Number(
+    (summary.stdout.match(/^\s*(\d+)\s+\|\s+(\d+)\s+\|\s+(\d+)/m) ?? [])[3] ?? -1,
+  );
+  const copyStatus = (summary.stdout.match(/\|\s+(on_loan|available)\s+\|/m) ?? [])[1];
+
+  if (wins !== 1 || losses !== 1 || activeLoans !== 1 || copyStatus !== 'on_loan') {
+    fail(
+      `concurrency invariant failed: wins=${wins} losses=${losses} active_loans=${activeLoans} copy=${copyStatus}`,
+    );
+  }
+
+  process.stdout.write('checkout concurrency: exactly one winner\n');
+} catch (error) {
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.exitCode = 1;
+} finally {
+  const cleanup = cleanupConcurrencyFixture(container, { ignoreStatus: true });
+  if (cleanup.status !== 0) {
+    process.stderr.write(
+      `Failed to remove checkout concurrency fixture:\n${cleanup.stderr ?? ''}\n`,
+    );
+    process.exitCode = 1;
+  }
+}

@@ -276,23 +276,33 @@ declare
   v_first record;
   v_second record;
   v_count integer;
+  v_title_ids uuid[] := array[
+    'f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1',
+    'f3bbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2'
+  ];
 begin
-  -- Scoped to this fixture's own titles: seed titles have no loans and will
-  -- not appear, but unrelated loan data from other concurrent sessions could
-  -- otherwise cause a spurious count mismatch.
-  select count(*) into v_count from public.report_high_demand(7) where title like 'Report %';
+  select count(*) into v_count
+  from public.report_high_demand(7)
+  where title_id = any(v_title_ids);
   if v_count <> 2 then
     raise exception 'expected 2 titles in high demand at 7 days, got %', v_count;
   end if;
 
   select title, checkout_count, waiting_holds into v_first
-  from public.report_high_demand(7) order by checkout_count desc limit 1;
+  from public.report_high_demand(7)
+  where title_id = any(v_title_ids)
+  order by checkout_count desc
+  limit 1;
   if v_first.title <> 'Report Alpha' or v_first.checkout_count <> 2 or v_first.waiting_holds <> 1 then
     raise exception 'expected Alpha first with 2 checkouts / 1 hold, got %', v_first;
   end if;
 
   select title, checkout_count into v_second
-  from public.report_high_demand(7) order by checkout_count desc offset 1 limit 1;
+  from public.report_high_demand(7)
+  where title_id = any(v_title_ids)
+  order by checkout_count desc
+  offset 1
+  limit 1;
   if v_second.title <> 'Report Beta' or v_second.checkout_count <> 1 then
     raise exception 'expected Beta second with 1 checkout, got %', v_second;
   end if;
