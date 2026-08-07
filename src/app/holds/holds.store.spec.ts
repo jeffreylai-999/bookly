@@ -190,6 +190,9 @@ describe('HoldsStore', () => {
     const store = setup({ listHolds });
 
     const pending = store.applyStatus('waiting');
+    await vi.waitFor(() => {
+      expect(listHolds).toHaveBeenCalledWith('waiting', { page: 1, pageSize: 10 });
+    });
     await store.applyStatus('ready');
     stale.resolve({ rows: [], total: 0, error: null });
     await pending;
