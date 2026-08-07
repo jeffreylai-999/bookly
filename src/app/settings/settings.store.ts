@@ -143,7 +143,7 @@ export class SettingsStore {
         detail: { currency: saved.row.currency, timezone: saved.row.timezone },
       });
       this.appSettingsState.set(saved.row);
-      // Keep the shared cache in step so Fines/Reports do not show the old row.
+      // Keep the shared cache in step so open screens do not show the old row.
       this.appSettingsCache.set(saved.row);
       return { error: auditResult.error ? 'audit_failed' : null };
     } finally {
