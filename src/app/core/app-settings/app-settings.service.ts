@@ -40,6 +40,8 @@ export class AppSettingsService {
   readonly reportRangeDays = this.reportRangeDaysState.asReadonly();
 
   private loadPromise: Promise<void> | null = null;
+  /** Bumped by `set()` so an in-flight fetch cannot overwrite a fresher write. */
+  private loadGeneration = 0;
 
   /** Idempotent — concurrent and repeat callers share one `app_settings` read. */
   load(): Promise<void> {
@@ -48,17 +50,24 @@ export class AppSettingsService {
 
   /** Called after a settings write so readers do not keep serving the old row. */
   set(row: AppSettingsRead): void {
+    this.loadGeneration++;
     this.loadPromise = Promise.resolve();
     this.currencyState.set(normalizeCurrency(row.currency));
     this.reportRangeDaysState.set(row.default_report_range_days);
   }
 
   private async fetch(): Promise<void> {
+    const generation = this.loadGeneration;
     const { data, error } = await this.supabase
       .from('app_settings')
       .select('currency, default_report_range_days')
       .eq('id', true)
       .single();
+
+    if (generation !== this.loadGeneration) {
+      // `set()` already pinned a fresher row — leave its memo alone.
+      return;
+    }
 
     if (error || !data) {
       // Drop the memo so a transient failure does not pin defaults for the session.

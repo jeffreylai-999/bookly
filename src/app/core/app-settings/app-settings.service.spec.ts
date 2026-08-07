@@ -10,7 +10,7 @@ type SettingsRow = {
 
 type QueryResult = { data: SettingsRow | null; error: { message: string } | null };
 
-function createQueryBuilder(resolve: () => QueryResult) {
+function createQueryBuilder(resolve: () => QueryResult | Promise<QueryResult>) {
   const builder: Record<string, unknown> = {};
   const self = () => builder;
   for (const method of ['select', 'eq', 'single']) {
@@ -23,7 +23,7 @@ function createQueryBuilder(resolve: () => QueryResult) {
   return builder;
 }
 
-function setup(resolve: () => QueryResult) {
+function setup(resolve: () => QueryResult | Promise<QueryResult>) {
   const from = vi.fn((table: string) => {
     expect(table).toBe('app_settings');
     return createQueryBuilder(resolve);
@@ -100,6 +100,22 @@ describe('AppSettingsService', () => {
     await service.load();
 
     expect(from).not.toHaveBeenCalled();
+    expect(service.currency()).toBe('JPY');
+    expect(service.reportRangeDays()).toBe(7);
+  });
+
+  it('ignores a late fetch after set() writes a fresher row', async () => {
+    let resolveFetch!: (value: QueryResult) => void;
+    const pending = new Promise<QueryResult>((resolve) => {
+      resolveFetch = resolve;
+    });
+    const { service } = setup(() => pending);
+
+    const loadPromise = service.load();
+    service.set({ currency: 'JPY', default_report_range_days: 7 });
+    resolveFetch({ data: { currency: 'EUR', default_report_range_days: 30 }, error: null });
+    await loadPromise;
+
     expect(service.currency()).toBe('JPY');
     expect(service.reportRangeDays()).toBe(7);
   });
