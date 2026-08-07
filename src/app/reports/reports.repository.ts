@@ -6,7 +6,6 @@ import { isRangeDays, type RangeDays, type ReportsData } from './reports.types';
 const DEFAULT_RANGE_DAYS: RangeDays = 14;
 
 export type ReportsSettings = {
-  currency: string;
   defaultRangeDays: RangeDays;
 };
 
@@ -14,17 +13,17 @@ export type ReportsSettings = {
 export class ReportsRepository {
   private readonly supabase = inject(SUPABASE_CLIENT);
 
+  /** Range default only — currency lives on `AppSettingsService`. */
   async getSettings(): Promise<{ settings: ReportsSettings; error: string | null }> {
     const { data, error } = await this.supabase
       .from('app_settings')
-      .select('currency, default_report_range_days')
+      .select('default_report_range_days')
       .eq('id', true)
       .single();
 
     const defaultRangeDays = data?.default_report_range_days;
     return {
       settings: {
-        currency: data?.currency ?? 'USD',
         defaultRangeDays:
           defaultRangeDays !== undefined && isRangeDays(defaultRangeDays)
             ? defaultRangeDays

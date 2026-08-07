@@ -1,5 +1,6 @@
 import { Service, computed, inject, signal } from '@angular/core';
 
+import { AppSettingsService } from '../core/app-settings';
 import { FinesRepository } from './fines.repository';
 import type {
   FineListItem,
@@ -17,6 +18,7 @@ const PAGE_SIZE = 10;
 @Service()
 export class FinesStore {
   private readonly repo = inject(FinesRepository);
+  private readonly appSettings = inject(AppSettingsService);
   /** Bumped on each load so superseded filter/page responses are ignored. */
   private loadGeneration = 0;
 
@@ -26,7 +28,6 @@ export class FinesStore {
   private readonly statusFilterState = signal<FineStatusFilter>('all');
   private readonly loadingState = signal(false);
   private readonly errorState = signal<string | null>(null);
-  private readonly currencyState = signal('USD');
   private readonly summaryState = signal<FineSummary | null>(null);
   private readonly summaryErrorState = signal<string | null>(null);
   private readonly selectedFineState = signal<FineListItem | null>(null);
@@ -43,7 +44,7 @@ export class FinesStore {
   readonly statusFilter = this.statusFilterState.asReadonly();
   readonly loading = this.loadingState.asReadonly();
   readonly error = this.errorState.asReadonly();
-  readonly currency = this.currencyState.asReadonly();
+  readonly currency = this.appSettings.currency;
   readonly summary = this.summaryState.asReadonly();
   readonly summaryError = this.summaryErrorState.asReadonly();
   readonly selectedFine = this.selectedFineState.asReadonly();
@@ -57,10 +58,7 @@ export class FinesStore {
   );
 
   async init(): Promise<void> {
-    const currency = await this.repo.getCurrency();
-    if (!currency.error) {
-      this.currencyState.set(currency.currency);
-    }
+    await this.appSettings.load();
     await this.load();
     await this.loadSummary();
   }

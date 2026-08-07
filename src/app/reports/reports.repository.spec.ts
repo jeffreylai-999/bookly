@@ -19,12 +19,12 @@ function createQueryBuilder(resolve: () => QueryResult) {
 }
 
 describe('ReportsRepository', () => {
-  it('reads currency and default range from the app_settings singleton', async () => {
+  it('reads the default range from the app_settings singleton', async () => {
     const client = {
       from: (table: string) => {
         expect(table).toBe('app_settings');
         return createQueryBuilder(() => ({
-          data: { currency: 'EUR', default_report_range_days: 30 },
+          data: { default_report_range_days: 30 },
           error: null,
         }));
       },
@@ -38,7 +38,7 @@ describe('ReportsRepository', () => {
     const result = await repo.getSettings();
 
     expect(result).toEqual({
-      settings: { currency: 'EUR', defaultRangeDays: 30 },
+      settings: { defaultRangeDays: 30 },
       error: null,
     });
   });
@@ -47,7 +47,7 @@ describe('ReportsRepository', () => {
     const client = {
       from: () =>
         createQueryBuilder(() => ({
-          data: { currency: 'USD', default_report_range_days: 99 },
+          data: { default_report_range_days: 99 },
           error: null,
         })),
     };

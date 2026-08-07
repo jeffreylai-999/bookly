@@ -15,6 +15,7 @@ import {
   UiSkeleton,
   UiTable,
 } from '../ui';
+import { normalizeCurrency } from '../core/app-settings';
 import { SettingsStore } from './settings.store';
 import {
   CURRENCY_PATTERN,
@@ -568,10 +569,9 @@ export class Settings implements OnInit {
   protected readonly typeRowKey = (row: MemberType): string => row.id;
 
   /** Falls back to USD if a stored code is ever malformed — the pipe throws on bad codes. */
-  protected readonly currencyCode = computed(() => {
-    const code = this.store.appSettings()?.currency ?? 'USD';
-    return CURRENCY_PATTERN.test(code) ? code : 'USD';
-  });
+  protected readonly currencyCode = computed(() =>
+    normalizeCurrency(this.store.appSettings()?.currency),
+  );
 
   protected readonly typeColumns = computed((): TableColumn<MemberType>[] => [
     { key: 'name', header: this.transloco.translate('settings.memberTypes.columns.name') },

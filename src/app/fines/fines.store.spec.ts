@@ -1,5 +1,7 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
+import { AppSettingsService } from '../core/app-settings';
 import { FinesRepository } from './fines.repository';
 import { FinesStore } from './fines.store';
 import type { FineListItem } from './fines.types';
@@ -20,15 +22,26 @@ const fineRow: FineListItem = {
 
 const summaryRow = { outstandingBalance: 12, collectedTotal: 30, waivedTotal: 5 };
 
-function setup(repoOverrides: Record<string, unknown> = {}) {
+function setup(
+  repoOverrides: Record<string, unknown> = {},
+  appSettingsOverrides: Partial<AppSettingsService> = {},
+) {
+  const currency = signal('EUR');
   TestBed.configureTestingModule({
     providers: [
       FinesStore,
       {
+        provide: AppSettingsService,
+        useValue: {
+          currency: currency.asReadonly(),
+          load: vi.fn().mockResolvedValue(undefined),
+          ...appSettingsOverrides,
+        },
+      },
+      {
         provide: FinesRepository,
         useValue: {
           list: vi.fn().mockResolvedValue({ rows: [], total: 0, error: null }),
-          getCurrency: vi.fn().mockResolvedValue({ currency: 'EUR', error: null }),
           summary: vi.fn().mockResolvedValue({ row: summaryRow, error: null }),
           listPayments: vi.fn().mockResolvedValue({ rows: [], error: null }),
           recordPayment: vi.fn(),
@@ -43,13 +56,15 @@ function setup(repoOverrides: Record<string, unknown> = {}) {
 }
 
 describe('FinesStore', () => {
-  it('loads fines, the summary, and the currency on init', async () => {
+  it('loads fines and the summary on init, reading currency from AppSettings', async () => {
     const list = vi.fn().mockResolvedValue({ rows: [{ id: 'f1' }], total: 1, error: null });
     const summary = vi.fn().mockResolvedValue({ row: summaryRow, error: null });
-    const store = setup({ list, summary });
+    const load = vi.fn().mockResolvedValue(undefined);
+    const store = setup({ list, summary }, { load });
 
     await store.init();
 
+    expect(load).toHaveBeenCalled();
     expect(list).toHaveBeenCalledWith({ page: 1, pageSize: 10, status: 'all' });
     expect(summary).toHaveBeenCalled();
     expect(store.currency()).toBe('EUR');
@@ -69,17 +84,6 @@ describe('FinesStore', () => {
     expect(list).toHaveBeenCalledWith({ page: 1, pageSize: 10, status: 'outstanding' });
     expect(store.page()).toBe(1);
     expect(store.statusFilter()).toBe('outstanding');
-  });
-
-  it('keeps the default currency when the settings read fails', async () => {
-    const store = setup({
-      getCurrency: vi.fn().mockResolvedValue({ currency: 'USD', error: 'boom' }),
-    });
-
-    await store.init();
-
-    expect(store.currency()).toBe('USD');
-    expect(store.error()).toBeNull();
   });
 
   it('surfaces list errors', async () => {
