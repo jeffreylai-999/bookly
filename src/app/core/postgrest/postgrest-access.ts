@@ -98,9 +98,9 @@ export function createPostgrestAccess(client: AppSupabaseClient) {
 
     async rpc<TFn extends RpcName>(
       fn: TFn,
-      args: Functions[TFn]['Args'],
+      ...args: Functions[TFn]['Args'] extends never ? [] : [Functions[TFn]['Args']]
     ): Promise<PostgrestAccessResult<Functions[TFn]['Returns']>> {
-      const { data, error } = await invokeRpc(fn, args);
+      const { data, error } = await invokeRpc(fn, args[0]);
       return toAccessResult({ data: data as Functions[TFn]['Returns'], error });
     },
   };

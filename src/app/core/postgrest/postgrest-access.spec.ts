@@ -131,6 +131,20 @@ describe('createPostgrestAccess', () => {
     });
   });
 
+  it('allows no-argument RPCs whose generated Args type is never', async () => {
+    const client = createPostgrestClientMock({
+      rpc: { data: [{ bucket: '1-7', bucket_order: 1, loan_count: 2 }], error: null },
+    });
+    const access = createPostgrestAccess(client);
+
+    await expect(access.rpc('report_overdue_aging')).resolves.toEqual({
+      ok: true,
+      data: [{ bucket: '1-7', bucket_order: 1, loan_count: 2 }],
+      count: null,
+    });
+    expect(client.rpc).toHaveBeenCalledWith('report_overdue_aging', undefined);
+  });
+
   it('passes through from() for reads and offers no write path (ADR-0001)', () => {
     const builder = createQueryBuilderMock({ data: [], error: null, count: 0 });
     const client = createPostgrestClientMock({ from: builder });
