@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
+import { AppSettingsService } from '../core/app-settings';
 import { AuditService } from '../core/audit';
 import { SettingsRepository } from './settings.repository';
 import { SettingsStore } from './settings.store';
@@ -81,9 +82,14 @@ async function createStore(repo: ReturnType<typeof repoFake>, log = vi.fn().mock
       SettingsStore,
       { provide: SettingsRepository, useValue: repo },
       { provide: AuditService, useValue: { log } },
+      { provide: AppSettingsService, useValue: { set: vi.fn() } },
     ],
   }).compileComponents();
-  return { store: TestBed.inject(SettingsStore), log: log as ReturnType<typeof vi.fn> };
+  return {
+    store: TestBed.inject(SettingsStore),
+    log: log as ReturnType<typeof vi.fn>,
+    appSettings: TestBed.inject(AppSettingsService),
+  };
 }
 
 describe('SettingsStore', () => {
@@ -200,11 +206,12 @@ describe('SettingsStore', () => {
 
   it('saves app settings, audits settings.update against the nil-uuid singleton', async () => {
     const repo = repoFake();
-    const { store, log } = await createStore(repo);
+    const { store, log, appSettings } = await createStore(repo);
 
     const result = await store.saveAppSettings(appForm);
 
     expect(result.error).toBeNull();
+    expect(appSettings.set).toHaveBeenCalledWith(sampleSettings);
     expect(repo.updateAppSettings).toHaveBeenCalledWith({
       currency: 'EUR',
       timezone: 'Europe/London',

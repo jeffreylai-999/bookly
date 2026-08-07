@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
+import { AppSettingsService } from '../core/app-settings';
 import { ReportsRepository } from './reports.repository';
 import { ReportsStore } from './reports.store';
 import type { ReportsData } from './reports.types';
@@ -14,17 +15,21 @@ const emptyData: ReportsData = {
   genreBreakdown: [],
 };
 
-function setup(repoOverrides: Record<string, unknown> = {}) {
+function setup(repoOverrides: Record<string, unknown> = {}, reportRangeDays: number | null = 14) {
   TestBed.configureTestingModule({
     providers: [
       ReportsStore,
       {
+        provide: AppSettingsService,
+        useValue: {
+          currency: () => 'EUR',
+          reportRangeDays: () => reportRangeDays,
+          load: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+      {
         provide: ReportsRepository,
         useValue: {
-          getSettings: vi.fn().mockResolvedValue({
-            settings: { currency: 'USD', defaultRangeDays: 14 },
-            error: null,
-          }),
           loadAll: vi.fn().mockResolvedValue({ data: emptyData, error: null }),
           ...repoOverrides,
         },
@@ -35,15 +40,12 @@ function setup(repoOverrides: Record<string, unknown> = {}) {
 }
 
 describe('ReportsStore', () => {
-  it('initializes from app_settings defaults and loads all seven metrics', async () => {
-    const getSettings = vi
-      .fn()
-      .mockResolvedValue({ settings: { currency: 'EUR', defaultRangeDays: 30 }, error: null });
+  it('initializes range and currency from AppSettings, then loads metrics', async () => {
     const loadAll = vi.fn().mockResolvedValue({
       data: { ...emptyData, overdueAging: [{ bucket: '1-7', bucket_order: 1, loan_count: 3 }] },
       error: null,
     });
-    const store = setup({ getSettings, loadAll });
+    const store = setup({ loadAll }, 30);
 
     await store.init();
 
@@ -56,16 +58,16 @@ describe('ReportsStore', () => {
     expect(store.error()).toBeNull();
   });
 
-  it('keeps the built-in 14-day default when the settings read fails', async () => {
-    const getSettings = vi
-      .fn()
-      .mockResolvedValue({ settings: { currency: 'USD', defaultRangeDays: 7 }, error: 'boom' });
-    const store = setup({ getSettings });
+  it.each([null, 99])(
+    'keeps the built-in 14-day default when the stored range is %o',
+    async (stored) => {
+      const store = setup({}, stored);
 
-    await store.init();
+      await store.init();
 
-    expect(store.range()).toBe(14);
-  });
+      expect(store.range()).toBe(14);
+    },
+  );
 
   it('setRange reloads with the new range and is a no-op when unchanged', async () => {
     const loadAll = vi.fn().mockResolvedValue({ data: emptyData, error: null });

@@ -1,6 +1,8 @@
 import { Service, computed, inject, signal } from '@angular/core';
 
+import { AppSettingsService } from '../core/app-settings';
 import { ReportsRepository } from './reports.repository';
+import { isRangeDays } from './reports.types';
 import type {
   DeadStockRow,
   FineCollectionRow,
@@ -17,11 +19,11 @@ const DEFAULT_RANGE: RangeDays = 14;
 @Service()
 export class ReportsStore {
   private readonly repo = inject(ReportsRepository);
+  private readonly appSettings = inject(AppSettingsService);
   /** Bumped on each load so a superseded range response is ignored. */
   private loadGeneration = 0;
 
   private readonly rangeState = signal<RangeDays>(DEFAULT_RANGE);
-  private readonly currencyState = signal('USD');
   private readonly loadingState = signal(false);
   private readonly errorState = signal<string | null>(null);
 
@@ -34,7 +36,7 @@ export class ReportsStore {
   private readonly genreBreakdownState = signal<GenreBreakdownRow[]>([]);
 
   readonly range = this.rangeState.asReadonly();
-  readonly currency = this.currencyState.asReadonly();
+  readonly currency = this.appSettings.currency;
   readonly loading = this.loadingState.asReadonly();
   readonly error = this.errorState.asReadonly();
 
@@ -51,10 +53,10 @@ export class ReportsStore {
   );
 
   async init(): Promise<void> {
-    const { settings, error } = await this.repo.getSettings();
-    this.currencyState.set(settings.currency);
-    if (!error) {
-      this.rangeState.set(settings.defaultRangeDays);
+    await this.appSettings.load();
+    const stored = this.appSettings.reportRangeDays();
+    if (stored !== null && isRangeDays(stored)) {
+      this.rangeState.set(stored);
     }
     await this.load();
   }
