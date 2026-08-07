@@ -8,6 +8,7 @@ import { ThrowingMissingKeyHandler } from '../core/i18n';
 import en from '../../../public/i18n/en.json';
 import { Settings } from './settings';
 import { SettingsStore } from './settings.store';
+import { AppSettingsService } from '../core/app-settings';
 import type { AppSettings, MemberType } from './settings.types';
 
 const sampleType: MemberType = {
@@ -73,6 +74,10 @@ async function render(store: ReturnType<typeof createStoreFake>) {
       lucideIcons,
       provideTranslocoMissingHandler(ThrowingMissingKeyHandler),
       { provide: SettingsStore, useValue: store },
+      {
+        provide: AppSettingsService,
+        useValue: { currency: () => store.appSettings()?.currency ?? 'USD' },
+      },
     ],
   })
     .overrideComponent(Settings, { set: { providers: [] } })

@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 
 import { CirculationRepository } from '../circulation/circulation.repository';
 import type { LoanListItem } from '../circulation/circulation.types';
+import { AppSettingsService } from '../core/app-settings';
 import { FinesRepository } from '../fines/fines.repository';
 import type { FineListItem } from '../fines/fines.types';
 import { HoldsRepository } from '../holds/holds.repository';
@@ -92,6 +93,13 @@ function setup(
     providers: [
       MemberDetailStore,
       {
+        provide: AppSettingsService,
+        useValue: {
+          currency: () => 'EUR',
+          load: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+      {
         provide: MembersRepository,
         useValue: {
           getById: vi.fn().mockResolvedValue({ row: memberRow(), error: null }),
@@ -108,9 +116,6 @@ function setup(
           getMemberMoney: vi
             .fn()
             .mockResolvedValue({ row: { balance: 0, projected: 0 }, error: null }),
-          getSettings: vi
-            .fn()
-            .mockResolvedValue({ row: { currency: 'USD', damaged_fee_default: 5 }, error: null }),
           renew: vi.fn().mockResolvedValue({ ok: true, loan: loanRow() }),
           ...overrides.circulation,
         },
@@ -142,9 +147,6 @@ describe('MemberDetailStore', () => {
         getMemberMoney: vi
           .fn()
           .mockResolvedValue({ row: { balance: 5, projected: 1.5 }, error: null }),
-        getSettings: vi
-          .fn()
-          .mockResolvedValue({ row: { currency: 'EUR', damaged_fee_default: 5 }, error: null }),
       },
       holds: { listByMember: vi.fn().mockResolvedValue({ rows: [holdRow()], error: null }) },
       fines: { listByMember: vi.fn().mockResolvedValue({ rows: [fineRow()], error: null }) },

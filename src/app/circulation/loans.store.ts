@@ -1,5 +1,6 @@
 import { Service, computed, inject, signal } from '@angular/core';
 
+import { AppSettingsService } from '../core/app-settings';
 import { CirculationRepository } from './circulation.repository';
 import type {
   LoanListItem,
@@ -13,6 +14,7 @@ const PAGE_SIZE = 10;
 @Service()
 export class LoansStore {
   private readonly repo = inject(CirculationRepository);
+  private readonly appSettings = inject(AppSettingsService);
   /** Bumped on each load so superseded tab/page responses are ignored. */
   private loadGeneration = 0;
 
@@ -23,7 +25,6 @@ export class LoansStore {
   private readonly pageState = signal(1);
   private readonly loadingState = signal(false);
   private readonly errorState = signal<string | null>(null);
-  private readonly currencyState = signal('USD');
   /** Loan id with a renew in flight; null when idle. */
   private readonly renewingIdState = signal<string | null>(null);
 
@@ -35,17 +36,14 @@ export class LoansStore {
   readonly pageSize = PAGE_SIZE;
   readonly loading = this.loadingState.asReadonly();
   readonly error = this.errorState.asReadonly();
-  readonly currency = this.currencyState.asReadonly();
+  readonly currency = this.appSettings.currency;
   readonly renewingId = this.renewingIdState.asReadonly();
   readonly empty = computed(
     () => !this.loadingState() && !this.errorState() && this.totalState() === 0,
   );
 
   async init(): Promise<void> {
-    const settings = await this.repo.getSettings();
-    if (settings.row) {
-      this.currencyState.set(settings.row.currency);
-    }
+    await this.appSettings.load();
     await this.load();
   }
 

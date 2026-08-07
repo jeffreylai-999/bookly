@@ -13,8 +13,9 @@ import {
   UiSearchInput,
   UiSegmented,
 } from '../ui';
-import { fineReasonTone } from '../fines/fines.types';
+import { AppSettingsService } from '../core/app-settings';
 import type { Json } from '../core/supabase';
+import { fineReasonTone } from '../fines/fines.types';
 import { CheckinStore } from './checkin.store';
 import {
   CHECKIN_ERROR_KEYS,
@@ -289,7 +290,8 @@ export class CheckinPanel {
     this.transloco.translate(CONDITION_NOTE_KEYS[this.store.condition()]),
   );
 
-  protected readonly currency = computed(() => this.store.settings()?.currency ?? 'USD');
+  private readonly appSettings = inject(AppSettingsService);
+  protected readonly currency = this.appSettings.currency;
 
   /** Renders the snapshotted accrual rule so staff can explain the charge. */
   protected accrualLine(fine: CheckinFine): string {

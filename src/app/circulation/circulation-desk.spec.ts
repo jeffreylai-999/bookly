@@ -14,6 +14,7 @@ import {
 import { of } from 'rxjs';
 
 import en from '../../../public/i18n/en.json';
+import { AppSettingsService } from '../core/app-settings';
 import { ThrowingMissingKeyHandler } from '../core/i18n/missing-key-handler';
 import { ToastService } from '../ui';
 import { CirculationDesk } from './circulation-desk';
@@ -46,6 +47,14 @@ describe('CirculationDesk', () => {
         ThrowingMissingKeyHandler,
         { provide: ToastService, useValue: toast },
         {
+          provide: AppSettingsService,
+          useValue: {
+            currency: () => 'USD',
+            damagedFeeDefault: () => 10,
+            load: vi.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
           provide: CirculationRepository,
           useValue: {
             searchMembers: vi.fn().mockResolvedValue({ rows: [], error: null }),
@@ -53,11 +62,12 @@ describe('CirculationDesk', () => {
             findCopyByBarcode: vi.fn(),
             findActiveLoanByBarcode: vi.fn(),
             getOverdueProjection: vi.fn(),
-            getSettings: vi.fn().mockResolvedValue({ row: null, error: null }),
             checkout: vi.fn(),
             checkin: vi.fn(),
             listLoans: vi.fn().mockResolvedValue({ rows: [], total: 0, error: null }),
             listOverdue: vi.fn().mockResolvedValue({ rows: [], total: 0, error: null }),
+            getMemberMoney: vi.fn().mockResolvedValue({ row: null, error: null }),
+            countWaitingHolds: vi.fn().mockResolvedValue({ count: 0, error: null }),
           },
         },
         {

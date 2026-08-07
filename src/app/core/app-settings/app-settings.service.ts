@@ -19,14 +19,12 @@ export function normalizeCurrency(code: string | null | undefined): string {
 type AppSettingsRead = {
   currency: string | null;
   default_report_range_days: number | null;
+  damaged_fee_default: number | null;
 };
 
 /**
  * Cached read of the `app_settings` singleton for the columns features display.
- * Reports and Fines share one fetch instead of querying the row each.
- *
- * Not yet the only reader: overview, circulation, and notifications still query
- * `app_settings` for currency directly.
+ * One fetch backs currency (and related desk columns) across the desk.
  */
 @Service()
 export class AppSettingsService {
@@ -35,9 +33,12 @@ export class AppSettingsService {
   private readonly currencyState = signal(DEFAULT_CURRENCY);
   /** Raw column value — Reports applies its own `isRangeDays` guard. */
   private readonly reportRangeDaysState = signal<number | null>(null);
+  /** Null until a successful read/write — check-in leaves the damaged field empty. */
+  private readonly damagedFeeDefaultState = signal<number | null>(null);
 
   readonly currency = this.currencyState.asReadonly();
   readonly reportRangeDays = this.reportRangeDaysState.asReadonly();
+  readonly damagedFeeDefault = this.damagedFeeDefaultState.asReadonly();
 
   private loadPromise: Promise<void> | null = null;
   /** Bumped by `set()` so an in-flight fetch cannot overwrite a fresher write. */
@@ -54,13 +55,14 @@ export class AppSettingsService {
     this.loadPromise = Promise.resolve();
     this.currencyState.set(normalizeCurrency(row.currency));
     this.reportRangeDaysState.set(row.default_report_range_days);
+    this.damagedFeeDefaultState.set(row.damaged_fee_default);
   }
 
   private async fetch(): Promise<void> {
     const generation = this.loadGeneration;
     const { data, error } = await this.supabase
       .from('app_settings')
-      .select('currency, default_report_range_days')
+      .select('currency, default_report_range_days, damaged_fee_default')
       .eq('id', true)
       .single();
 

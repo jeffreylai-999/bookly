@@ -15,7 +15,7 @@ import {
   UiSkeleton,
   UiTable,
 } from '../ui';
-import { CURRENCY_PATTERN, normalizeCurrency } from '../core/app-settings';
+import { AppSettingsService, CURRENCY_PATTERN } from '../core/app-settings';
 import { SettingsStore } from './settings.store';
 import {
   REPORT_RANGE_OPTIONS,
@@ -521,6 +521,7 @@ export class Settings implements OnInit {
   protected readonly store = inject(SettingsStore);
   private readonly toast = inject(ToastService);
   private readonly transloco = inject(TranslocoService);
+  private readonly appSettings = inject(AppSettingsService);
 
   protected readonly typeDialogOpen = signal(false);
   protected readonly deleteDialogOpen = signal(false);
@@ -567,10 +568,8 @@ export class Settings implements OnInit {
 
   protected readonly typeRowKey = (row: MemberType): string => row.id;
 
-  /** Falls back to USD if a stored code is ever malformed — the pipe throws on bad codes. */
-  protected readonly currencyCode = computed(() =>
-    normalizeCurrency(this.store.appSettings()?.currency),
-  );
+  /** Module owns the USD fallback — the pipe throws on malformed codes. */
+  protected readonly currencyCode = this.appSettings.currency;
 
   protected readonly typeColumns = computed((): TableColumn<MemberType>[] => [
     { key: 'name', header: this.transloco.translate('settings.memberTypes.columns.name') },

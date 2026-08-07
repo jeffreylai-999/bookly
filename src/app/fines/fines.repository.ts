@@ -66,16 +66,6 @@ export class FinesRepository {
     return { rows: (data as FineListItem[] | null) ?? [], error: error?.message ?? null };
   }
 
-  async getCurrency(): Promise<{ currency: string; error: string | null }> {
-    const { data, error } = await this.supabase
-      .from('app_settings')
-      .select('currency')
-      .eq('id', true)
-      .single();
-
-    return { currency: data?.currency ?? 'USD', error: error?.message ?? null };
-  }
-
   /** All-time desk totals, aggregated in SQL by the fines_summary view. */
   async summary(): Promise<{ row: FineSummary | null; error: string | null }> {
     const { data, error } = await this.supabase.from('fines_summary').select('*').single();

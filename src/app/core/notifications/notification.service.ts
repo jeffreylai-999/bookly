@@ -4,6 +4,7 @@ import { TranslocoService } from '@jsverse/transloco';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 import { ToastService } from '../../ui';
+import { AppSettingsService } from '../app-settings';
 import { SUPABASE_CLIENT } from '../supabase';
 import { notificationMessage, type NotificationRow } from './notification.types';
 
@@ -25,12 +26,12 @@ export class NotificationService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly toast = inject(ToastService);
   private readonly transloco = inject(TranslocoService);
+  private readonly appSettings = inject(AppSettingsService);
 
   private readonly notificationsState = signal<NotificationRow[]>([]);
   private readonly unreadCountState = signal(0);
   private readonly loadingState = signal(false);
   private readonly errorState = signal<string | null>(null);
-  private readonly currencyState = signal('USD');
 
   readonly notifications = this.notificationsState.asReadonly();
   readonly unreadCount = this.unreadCountState.asReadonly();
@@ -92,7 +93,7 @@ export class NotificationService {
   messageFor(row: NotificationRow) {
     return notificationMessage(row, {
       locale: this.transloco.getActiveLang(),
-      currency: this.currencyState(),
+      currency: this.appSettings.currency(),
     });
   }
 
@@ -100,7 +101,7 @@ export class NotificationService {
     this.loadingState.set(true);
     this.errorState.set(null);
     try {
-      const [list, count, settings] = await Promise.all([
+      const [list, count] = await Promise.all([
         this.supabase
           .from('notifications')
           .select('*')
@@ -110,7 +111,7 @@ export class NotificationService {
           .from('notifications')
           .select('id', { count: 'exact', head: true })
           .is('read_at', null),
-        this.supabase.from('app_settings').select('currency').eq('id', true).maybeSingle(),
+        this.appSettings.load(),
       ]);
 
       if (list.error || count.error) {
@@ -120,9 +121,6 @@ export class NotificationService {
 
       this.notificationsState.set(list.data ?? []);
       this.unreadCountState.set(count.count ?? 0);
-      if (settings.data?.currency) {
-        this.currencyState.set(settings.data.currency);
-      }
     } catch {
       this.errorState.set('load_failed');
     } finally {
