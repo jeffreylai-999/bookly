@@ -1,8 +1,16 @@
 import { TestBed } from '@angular/core/testing';
 
+import { AppSettingsService } from '../core/app-settings';
 import { CirculationRepository } from './circulation.repository';
 import { CirculationStore } from './circulation.store';
 import type { CheckoutCopy, CheckoutMember } from './circulation.types';
+
+function appSettingsFake(currency = 'USD') {
+  return {
+    currency: () => currency,
+    load: vi.fn().mockResolvedValue(undefined),
+  };
+}
 
 const member: CheckoutMember = {
   id: 'm1',
@@ -47,9 +55,9 @@ describe('CirculationStore', () => {
             searchMembers: vi.fn(),
             checkout: vi.fn(),
             getMemberMoney: vi.fn().mockResolvedValue({ row: null, error: null }),
-            getSettings: vi.fn().mockResolvedValue({ row: null, error: null }),
           },
         },
+        { provide: AppSettingsService, useValue: appSettingsFake() },
       ],
     }).compileComponents();
 
@@ -78,9 +86,9 @@ describe('CirculationStore', () => {
             searchMembers: vi.fn(),
             checkout: vi.fn(),
             getMemberMoney: vi.fn().mockResolvedValue({ row: null, error: null }),
-            getSettings: vi.fn().mockResolvedValue({ row: null, error: null }),
           },
         },
+        { provide: AppSettingsService, useValue: appSettingsFake() },
       ],
     }).compileComponents();
 
@@ -110,9 +118,9 @@ describe('CirculationStore', () => {
             searchMembers: vi.fn(),
             checkout: vi.fn(),
             getMemberMoney: vi.fn().mockResolvedValue({ row: null, error: null }),
-            getSettings: vi.fn().mockResolvedValue({ row: null, error: null }),
           },
         },
+        { provide: AppSettingsService, useValue: appSettingsFake() },
       ],
     }).compileComponents();
 
@@ -154,9 +162,9 @@ describe('CirculationStore', () => {
             searchMembers: vi.fn(),
             checkout,
             getMemberMoney: vi.fn().mockResolvedValue({ row: null, error: null }),
-            getSettings: vi.fn().mockResolvedValue({ row: null, error: null }),
           },
         },
+        { provide: AppSettingsService, useValue: appSettingsFake() },
       ],
     }).compileComponents();
 
@@ -186,9 +194,9 @@ describe('CirculationStore', () => {
             searchMembers: vi.fn(),
             checkout,
             getMemberMoney: vi.fn().mockResolvedValue({ row: null, error: null }),
-            getSettings: vi.fn().mockResolvedValue({ row: null, error: null }),
           },
         },
+        { provide: AppSettingsService, useValue: appSettingsFake() },
       ],
     }).compileComponents();
 
@@ -206,9 +214,7 @@ describe('CirculationStore', () => {
     const getMemberMoney = vi
       .fn()
       .mockResolvedValue({ row: { balance: 12, projected: 0.75 }, error: null });
-    const getSettings = vi
-      .fn()
-      .mockResolvedValue({ row: { currency: 'EUR', damaged_fee_default: 10 }, error: null });
+    const appSettings = appSettingsFake('EUR');
 
     await TestBed.configureTestingModule({
       providers: [
@@ -221,9 +227,9 @@ describe('CirculationStore', () => {
             searchMembers: vi.fn(),
             checkout: vi.fn(),
             getMemberMoney,
-            getSettings,
           },
         },
+        { provide: AppSettingsService, useValue: appSettings },
       ],
     }).compileComponents();
 
@@ -233,42 +239,10 @@ describe('CirculationStore', () => {
     await vi.waitFor(() => expect(store.money()).toEqual({ balance: 12, projected: 0.75 }));
 
     expect(getMemberMoney).toHaveBeenCalledWith('m1');
+    expect(appSettings.load).toHaveBeenCalled();
     expect(store.currency()).toBe('EUR');
 
     store.reset();
     expect(store.money()).toBeNull();
-  });
-
-  it('retries the settings read after a failure instead of latching', async () => {
-    const getSettings = vi
-      .fn()
-      .mockResolvedValueOnce({ row: null, error: 'boom' })
-      .mockResolvedValueOnce({ row: { currency: 'EUR', damaged_fee_default: 10 }, error: null });
-
-    await TestBed.configureTestingModule({
-      providers: [
-        CirculationStore,
-        {
-          provide: CirculationRepository,
-          useValue: {
-            findMemberByCard: vi.fn(),
-            findCopyByBarcode: vi.fn(),
-            searchMembers: vi.fn(),
-            checkout: vi.fn(),
-            getMemberMoney: vi.fn().mockResolvedValue({ row: null, error: null }),
-            getSettings,
-          },
-        },
-      ],
-    }).compileComponents();
-
-    const store = TestBed.inject(CirculationStore);
-    store.setMember(member);
-    await vi.waitFor(() => expect(getSettings).toHaveBeenCalledTimes(1));
-    expect(store.currency()).toBe('USD');
-
-    store.setMember({ ...member, id: 'm2', card_barcode: 'MBR-ADA-2' });
-    await vi.waitFor(() => expect(store.currency()).toBe('EUR'));
-    expect(getSettings).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,5 +1,6 @@
 import { Service, inject, signal } from '@angular/core';
 
+import { AppSettingsService } from '../core/app-settings';
 import { CirculationRepository, type MemberMoney } from '../circulation/circulation.repository';
 import type { LoanListItem, RenewResult } from '../circulation/circulation.types';
 import { FinesRepository } from '../fines/fines.repository';
@@ -21,6 +22,7 @@ export class MemberDetailStore {
   private readonly circulationRepo = inject(CirculationRepository);
   private readonly holdsRepo = inject(HoldsRepository);
   private readonly finesRepo = inject(FinesRepository);
+  private readonly appSettings = inject(AppSettingsService);
 
   /** Guards against a superseded init() clobbering state from a newer one. */
   private readonly memberIdState = signal<string | null>(null);
@@ -47,8 +49,6 @@ export class MemberDetailStore {
   private readonly moneyState = signal<MemberMoney | null>(null);
   private readonly moneyErrorState = signal<string | null>(null);
 
-  private readonly currencyState = signal('USD');
-
   readonly member = this.memberState.asReadonly();
   readonly memberLoading = this.memberLoadingState.asReadonly();
   readonly memberError = this.memberErrorState.asReadonly();
@@ -71,7 +71,7 @@ export class MemberDetailStore {
   readonly money = this.moneyState.asReadonly();
   readonly moneyError = this.moneyErrorState.asReadonly();
 
-  readonly currency = this.currencyState.asReadonly();
+  readonly currency = this.appSettings.currency;
 
   async init(memberId: string): Promise<void> {
     this.memberIdState.set(memberId);
@@ -87,7 +87,7 @@ export class MemberDetailStore {
       this.loadHolds(memberId),
       this.loadFines(memberId),
       this.loadMoney(memberId),
-      this.loadCurrency(),
+      this.appSettings.load(),
     ]);
   }
 
@@ -225,12 +225,5 @@ export class MemberDetailStore {
       return;
     }
     this.moneyState.set(result.row);
-  }
-
-  private async loadCurrency(): Promise<void> {
-    const settings = await this.circulationRepo.getSettings();
-    if (settings.row) {
-      this.currencyState.set(settings.row.currency);
-    }
   }
 }

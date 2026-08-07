@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
+import { AppSettingsService } from '../core/app-settings';
 import { CheckinStore } from './checkin.store';
 import { CirculationRepository } from './circulation.repository';
 import type {
@@ -60,19 +61,27 @@ const success: CheckinSuccess = {
   hold: null,
 };
 
-function setup(repoOverrides: Record<string, unknown>) {
+function setup(
+  repoOverrides: Record<string, unknown>,
+  appSettingsOverrides: Record<string, unknown> = {},
+) {
   TestBed.configureTestingModule({
     providers: [
       CheckinStore,
+      {
+        provide: AppSettingsService,
+        useValue: {
+          currency: () => 'USD',
+          damagedFeeDefault: () => 10,
+          load: vi.fn().mockResolvedValue(undefined),
+          ...appSettingsOverrides,
+        },
+      },
       {
         provide: CirculationRepository,
         useValue: {
           findActiveLoanByBarcode: vi.fn().mockResolvedValue({ row: null, error: null }),
           getOverdueProjection: vi.fn().mockResolvedValue({ row: null, error: null }),
-          getSettings: vi.fn().mockResolvedValue({
-            row: { currency: 'USD', damaged_fee_default: 10 },
-            error: null,
-          }),
           countWaitingHolds: vi.fn().mockResolvedValue({ count: 0, error: null }),
           checkin: vi.fn(),
           ...repoOverrides,
@@ -145,17 +154,18 @@ describe('CheckinStore', () => {
     expect(store.canConfirm()).toBe(false);
   });
 
-  it('keeps the scan usable when the settings read fails', async () => {
-    const store = setup({
-      findActiveLoanByBarcode: vi.fn().mockResolvedValue({ row: lookup, error: null }),
-      getSettings: vi.fn().mockResolvedValue({ row: null, error: 'boom' }),
-    });
+  it('keeps the scan usable when the damaged-fee default is unavailable', async () => {
+    const store = setup(
+      {
+        findActiveLoanByBarcode: vi.fn().mockResolvedValue({ row: lookup, error: null }),
+      },
+      { damagedFeeDefault: () => null },
+    );
 
     const result = await store.selectCopyByBarcode('BK-100');
 
     expect(result.error).toBeNull();
     expect(store.candidate()).not.toBeNull();
-    expect(store.settings()).toBeNull();
     expect(store.damagedAmount()).toBe('');
   });
 

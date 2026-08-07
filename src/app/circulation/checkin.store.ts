@@ -1,6 +1,7 @@
 import { Service, computed, inject, signal } from '@angular/core';
 
-import { CirculationRepository, type DeskSettings } from './circulation.repository';
+import { AppSettingsService } from '../core/app-settings';
+import { CirculationRepository } from './circulation.repository';
 import type {
   CheckinCandidate,
   CheckinCondition,
@@ -12,6 +13,7 @@ import type {
 @Service()
 export class CheckinStore {
   private readonly repo = inject(CirculationRepository);
+  private readonly appSettings = inject(AppSettingsService);
 
   private readonly candidateState = signal<CheckinCandidate | null>(null);
   private readonly conditionState = signal<CheckinCondition>('ok');
@@ -19,7 +21,6 @@ export class CheckinStore {
   /** False while the field shows the prefilled default — an untouched prefill is
    *  not a staff override, so confirm leaves p_damaged_amount to the RPC default. */
   private readonly damagedEditedState = signal(false);
-  private readonly settingsState = signal<DeskSettings | null>(null);
   private readonly busyState = signal(false);
   private readonly resultState = signal<CheckinSuccess | null>(null);
   /** Waiting holds on the scanned copy's title — the queue a fill would serve. */
@@ -29,7 +30,6 @@ export class CheckinStore {
   readonly candidate = this.candidateState.asReadonly();
   readonly condition = this.conditionState.asReadonly();
   readonly damagedAmount = this.damagedAmountState.asReadonly();
-  readonly settings = this.settingsState.asReadonly();
   readonly busy = this.busyState.asReadonly();
   readonly result = this.resultState.asReadonly();
   readonly waitingHolds = this.waitingHoldsState.asReadonly();
@@ -62,14 +62,9 @@ export class CheckinStore {
       if (error) return { error: 'lookup_failed' };
       if (!row) return { error: 'loan_not_found' };
 
-      // Settings (damaged-fee default, currency) are a soft dependency: if the
-      // read fails, the scan still lands and the damaged field just starts empty.
-      if (!this.settingsState()) {
-        const settings = await this.repo.getSettings();
-        if (settings.row) {
-          this.settingsState.set(settings.row);
-        }
-      }
+      // Soft dependency: if the settings read fails, the scan still lands and
+      // the damaged field just starts empty.
+      await this.appSettings.load();
 
       const projection = await this.repo.getOverdueProjection(row.loan.id);
       if (projection.error) return { error: 'lookup_failed' };
@@ -83,9 +78,8 @@ export class CheckinStore {
       this.fillHoldState.set(!waiting.error && waiting.count > 0);
       this.conditionState.set('ok');
       // Re-prefill per scan so a previous override never leaks into the next check-in.
-      this.damagedAmountState.set(
-        this.settingsState()?.damaged_fee_default.toFixed(2) ?? '',
-      );
+      const feeDefault = this.appSettings.damagedFeeDefault();
+      this.damagedAmountState.set(feeDefault !== null ? feeDefault.toFixed(2) : '');
       this.damagedEditedState.set(false);
       this.resultState.set(null);
       return { error: null };

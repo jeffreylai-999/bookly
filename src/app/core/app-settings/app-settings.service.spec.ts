@@ -6,6 +6,7 @@ import { AppSettingsService } from './app-settings.service';
 type SettingsRow = {
   currency: string | null;
   default_report_range_days: number | null;
+  damaged_fee_default: number | null;
 };
 
 type QueryResult = { data: SettingsRow | null; error: { message: string } | null };
@@ -37,9 +38,13 @@ function setup(resolve: () => QueryResult | Promise<QueryResult>) {
 }
 
 describe('AppSettingsService', () => {
-  it('loads currency and the report range default from one app_settings read', async () => {
+  it('loads currency, report range, and damaged fee from one app_settings read', async () => {
     const { service, from } = setup(() => ({
-      data: { currency: 'EUR', default_report_range_days: 30 },
+      data: {
+        currency: 'EUR',
+        default_report_range_days: 30,
+        damaged_fee_default: 12.5,
+      },
       error: null,
     }));
 
@@ -48,11 +53,12 @@ describe('AppSettingsService', () => {
     expect(from).toHaveBeenCalledTimes(1);
     expect(service.currency()).toBe('EUR');
     expect(service.reportRangeDays()).toBe(30);
+    expect(service.damagedFeeDefault()).toBe(12.5);
   });
 
   it.each(['', null, 'us', 'usd'])('falls back to USD for the currency code %o', async (code) => {
     const { service } = setup(() => ({
-      data: { currency: code, default_report_range_days: 7 },
+      data: { currency: code, default_report_range_days: 7, damaged_fee_default: 5 },
       error: null,
     }));
 
@@ -70,17 +76,22 @@ describe('AppSettingsService', () => {
 
     expect(service.currency()).toBe('USD');
     expect(service.reportRangeDays()).toBeNull();
+    expect(service.damagedFeeDefault()).toBeNull();
 
-    result = { data: { currency: 'GBP', default_report_range_days: 14 }, error: null };
+    result = {
+      data: { currency: 'GBP', default_report_range_days: 14, damaged_fee_default: 8 },
+      error: null,
+    };
     await service.load();
 
     expect(from).toHaveBeenCalledTimes(2);
     expect(service.currency()).toBe('GBP');
+    expect(service.damagedFeeDefault()).toBe(8);
   });
 
   it('dedupes concurrent loads into a single read', async () => {
     const { service, from } = setup(() => ({
-      data: { currency: 'GBP', default_report_range_days: 15 },
+      data: { currency: 'GBP', default_report_range_days: 15, damaged_fee_default: 10 },
       error: null,
     }));
 
@@ -92,16 +103,17 @@ describe('AppSettingsService', () => {
 
   it('set() refreshes the cache so a later load does not refetch', async () => {
     const { service, from } = setup(() => ({
-      data: { currency: 'EUR', default_report_range_days: 30 },
+      data: { currency: 'EUR', default_report_range_days: 30, damaged_fee_default: 10 },
       error: null,
     }));
 
-    service.set({ currency: 'JPY', default_report_range_days: 7 });
+    service.set({ currency: 'JPY', default_report_range_days: 7, damaged_fee_default: 20 });
     await service.load();
 
     expect(from).not.toHaveBeenCalled();
     expect(service.currency()).toBe('JPY');
     expect(service.reportRangeDays()).toBe(7);
+    expect(service.damagedFeeDefault()).toBe(20);
   });
 
   it('ignores a late fetch after set() writes a fresher row', async () => {
@@ -112,11 +124,15 @@ describe('AppSettingsService', () => {
     const { service } = setup(() => pending);
 
     const loadPromise = service.load();
-    service.set({ currency: 'JPY', default_report_range_days: 7 });
-    resolveFetch({ data: { currency: 'EUR', default_report_range_days: 30 }, error: null });
+    service.set({ currency: 'JPY', default_report_range_days: 7, damaged_fee_default: 20 });
+    resolveFetch({
+      data: { currency: 'EUR', default_report_range_days: 30, damaged_fee_default: 10 },
+      error: null,
+    });
     await loadPromise;
 
     expect(service.currency()).toBe('JPY');
     expect(service.reportRangeDays()).toBe(7);
+    expect(service.damagedFeeDefault()).toBe(20);
   });
 });

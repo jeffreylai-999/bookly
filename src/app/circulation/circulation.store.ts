@@ -1,5 +1,6 @@
 import { Service, computed, inject, signal } from '@angular/core';
 
+import { AppSettingsService } from '../core/app-settings';
 import { CirculationRepository, type MemberMoney } from './circulation.repository';
 import type {
   CheckoutCopy,
@@ -32,23 +33,22 @@ function copyStatusToError(status: CopyStatus): CheckoutError | null {
 @Service()
 export class CirculationStore {
   private readonly repo = inject(CirculationRepository);
+  private readonly appSettings = inject(AppSettingsService);
 
   private readonly memberState = signal<CheckoutMember | null>(null);
   private readonly queuedState = signal<CheckoutCopy[]>([]);
   private readonly busyState = signal(false);
   private readonly lastDueAtState = signal<string | null>(null);
   private readonly moneyState = signal<MemberMoney | null>(null);
-  private readonly currencyState = signal('USD');
   /** Bumped per member switch so a stale money response can't land. */
   private moneyGeneration = 0;
-  private settingsLoaded = false;
 
   readonly member = this.memberState.asReadonly();
   readonly queuedCopies = this.queuedState.asReadonly();
   readonly busy = this.busyState.asReadonly();
   readonly lastDueAt = this.lastDueAtState.asReadonly();
   readonly money = this.moneyState.asReadonly();
-  readonly currency = this.currencyState.asReadonly();
+  readonly currency = this.appSettings.currency;
 
   readonly canConfirm = computed(
     () =>
@@ -150,21 +150,11 @@ export class CirculationStore {
     const generation = ++this.moneyGeneration;
     this.moneyState.set(null);
     if (!memberId) return;
-    void this.ensureSettings();
+    void this.appSettings.load();
     void this.repo.getMemberMoney(memberId).then(({ row }) => {
       if (row && generation === this.moneyGeneration) {
         this.moneyState.set(row);
       }
     });
-  }
-
-  private async ensureSettings(): Promise<void> {
-    if (this.settingsLoaded) return;
-    const { row } = await this.repo.getSettings();
-    if (row) {
-      // Only latch on success — a failed read must retry on the next member.
-      this.settingsLoaded = true;
-      this.currencyState.set(row.currency);
-    }
   }
 }

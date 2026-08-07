@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
+import { AppSettingsService } from '../core/app-settings';
 import { CirculationRepository } from './circulation.repository';
 import { LoansStore } from './loans.store';
 import type { LoanListItem } from './circulation.types';
@@ -24,14 +25,17 @@ function setup(repoOverrides: Record<string, unknown> = {}) {
     providers: [
       LoansStore,
       {
+        provide: AppSettingsService,
+        useValue: {
+          currency: () => 'EUR',
+          load: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+      {
         provide: CirculationRepository,
         useValue: {
           listLoans: vi.fn().mockResolvedValue({ rows: [], total: 0, error: null }),
           listOverdue: vi.fn().mockResolvedValue({ rows: [], total: 0, error: null }),
-          getSettings: vi.fn().mockResolvedValue({
-            row: { currency: 'EUR', damaged_fee_default: 10 },
-            error: null,
-          }),
           renew: vi.fn().mockResolvedValue({ ok: true, loan: loanRow }),
           ...repoOverrides,
         },

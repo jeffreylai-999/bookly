@@ -13,6 +13,7 @@ import {
 } from 'lucide-angular';
 
 import en from '../../../public/i18n/en.json';
+import { AppSettingsService } from '../core/app-settings';
 import { ThrowingMissingKeyHandler } from '../core/i18n/missing-key-handler';
 import { ToastService } from '../ui';
 import { CheckinPanel } from './checkin-panel';
@@ -116,7 +117,6 @@ describe('CheckinPanel', () => {
       candidate: candidateSig.asReadonly(),
       condition: conditionSig.asReadonly(),
       damagedAmount: damagedAmountSig.asReadonly(),
-      settings: signal({ currency: 'USD' }).asReadonly(),
       busy: busySig.asReadonly(),
       result: resultSig.asReadonly(),
       projection: signal<OverdueLoan | null>(null).asReadonly(),
@@ -157,6 +157,10 @@ describe('CheckinPanel', () => {
         provideRouter([]),
         ThrowingMissingKeyHandler,
         { provide: ToastService, useValue: toast },
+        {
+          provide: AppSettingsService,
+          useValue: { currency: () => 'USD' },
+        },
         {
           provide: LUCIDE_ICONS,
           multi: true,

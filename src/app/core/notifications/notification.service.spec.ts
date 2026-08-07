@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { TranslocoService } from '@jsverse/transloco';
 
 import { ToastService } from '../../ui';
+import { AppSettingsService } from '../app-settings';
 import { SUPABASE_CLIENT } from '../supabase';
 import { NotificationService } from './notification.service';
 import type { NotificationRow } from './notification.types';
@@ -41,13 +42,6 @@ function makeCountBuilder(result: { count: number | null; error: { message: stri
   return builder;
 }
 
-function makeSettingsBuilder(result: { data: { currency: string } | null; error: null }) {
-  const builder: Record<string, unknown> = {};
-  builder['eq'] = vi.fn().mockReturnValue(builder);
-  builder['maybeSingle'] = vi.fn().mockResolvedValue(result);
-  return builder;
-}
-
 function makeUpdateBuilder(result: { error: { message: string } | null } = { error: null }) {
   const builder: Record<string, unknown> = {};
   builder['eq'] = vi.fn().mockReturnValue(builder);
@@ -63,23 +57,17 @@ function setup(opts?: {
 }) {
   const listBuilder = makeListBuilder(opts?.list ?? { data: [holdReadyRow()], error: null });
   const countBuilder = makeCountBuilder(opts?.count ?? { count: 1, error: null });
-  const settingsBuilder = makeSettingsBuilder({
-    data: { currency: opts?.currency ?? 'USD' },
-    error: null,
-  });
   const updateBuilder = makeUpdateBuilder();
 
   const notificationsSelect = vi.fn((_columns: string, options?: { head?: boolean }) =>
     options?.head ? countBuilder : listBuilder,
   );
   const notificationsUpdate = vi.fn().mockReturnValue(updateBuilder);
-  const appSettingsSelect = vi.fn().mockReturnValue(settingsBuilder);
 
-  const from = vi.fn((table: string) =>
-    table === 'notifications'
-      ? { select: notificationsSelect, update: notificationsUpdate }
-      : { select: appSettingsSelect },
-  );
+  const from = vi.fn((table: string) => {
+    expect(table).toBe('notifications');
+    return { select: notificationsSelect, update: notificationsUpdate };
+  });
 
   const channelObj: Record<string, unknown> = {};
   let insertCallback: ((payload: { new: NotificationRow }) => void) | null = null;
@@ -95,11 +83,16 @@ function setup(opts?: {
   const translate = vi.fn((key: string, params?: Record<string, unknown>) =>
     params ? `${key}:${JSON.stringify(params)}` : key,
   );
+  const appSettings = {
+    currency: () => opts?.currency ?? 'USD',
+    load: vi.fn().mockResolvedValue(undefined),
+  };
 
   TestBed.configureTestingModule({
     providers: [
       NotificationService,
       { provide: SUPABASE_CLIENT, useValue: { from, channel, removeChannel } },
+      { provide: AppSettingsService, useValue: appSettings },
       { provide: ToastService, useValue: { show: toastShow, error: vi.fn() } },
       { provide: TranslocoService, useValue: { translate, getActiveLang: () => 'en-US' } },
     ],
@@ -110,7 +103,6 @@ function setup(opts?: {
     from,
     notificationsSelect,
     notificationsUpdate,
-    appSettingsSelect,
     listBuilder,
     countBuilder,
     updateBuilder,
@@ -118,6 +110,7 @@ function setup(opts?: {
     removeChannel,
     toastShow,
     translate,
+    appSettings,
     emitInsert: (row: NotificationRow) => insertCallback?.({ new: row }),
   };
 }
@@ -125,7 +118,7 @@ function setup(opts?: {
 describe('NotificationService', () => {
   it('loads the recent list, unread count, and currency on init', async () => {
     const rows = [holdReadyRow(), holdReadyRow({ id: 'n2' })];
-    const { service } = setup({
+    const { service, appSettings } = setup({
       list: { data: rows, error: null },
       count: { count: 2, error: null },
       currency: 'EUR',
@@ -137,6 +130,7 @@ describe('NotificationService', () => {
     expect(service.unreadCount()).toBe(2);
     expect(service.loading()).toBe(false);
     expect(service.error()).toBeNull();
+    expect(appSettings.load).toHaveBeenCalled();
   });
 
   it('is idempotent — a second init does not reload', async () => {

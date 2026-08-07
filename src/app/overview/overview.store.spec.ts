@@ -8,6 +8,7 @@ import type {
   DueTodayLoan,
   OverdueLoan,
 } from '../circulation/circulation.types';
+import { AppSettingsService } from '../core/app-settings';
 import { FinesRepository } from '../fines/fines.repository';
 import { HoldsRepository } from '../holds/holds.repository';
 import type { HoldListItem } from '../holds/holds.types';
@@ -98,6 +99,13 @@ function setup(
     providers: [
       OverviewStore,
       {
+        provide: AppSettingsService,
+        useValue: {
+          currency: () => 'USD',
+          load: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+      {
         provide: CirculationRepository,
         useValue: {
           listDueToday: vi.fn().mockResolvedValue({ rows: [dueTodayRow()], total: 1, error: null }),
@@ -121,7 +129,6 @@ function setup(
             row: { outstandingBalance: 42.5, collectedTotal: 10, waivedTotal: 0 },
             error: null,
           }),
-          getCurrency: vi.fn().mockResolvedValue({ currency: 'USD', error: null }),
           ...overrides.fines,
         },
       },
@@ -233,7 +240,6 @@ describe('OverviewStore', () => {
     const store = setup({
       fines: {
         summary: vi.fn().mockResolvedValue({ row: null, error: 'boom' }),
-        getCurrency: vi.fn().mockResolvedValue({ currency: 'USD', error: 'boom' }),
       },
     });
 

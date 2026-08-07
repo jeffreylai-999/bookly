@@ -2,6 +2,7 @@ import { Service, inject, signal } from '@angular/core';
 
 import type { AuditListItem } from '../audit/audit.types';
 import { AuditRepository } from '../audit/audit.repository';
+import { AppSettingsService } from '../core/app-settings';
 import { CirculationRepository } from '../circulation/circulation.repository';
 import type {
   CheckoutTrendPoint,
@@ -30,6 +31,7 @@ export class OverviewStore {
   private readonly holdsRepo = inject(HoldsRepository);
   private readonly finesRepo = inject(FinesRepository);
   private readonly auditRepo = inject(AuditRepository);
+  private readonly appSettings = inject(AppSettingsService);
 
   private readonly loadingState = signal(false);
 
@@ -48,7 +50,6 @@ export class OverviewStore {
 
   private readonly finesOutstandingState = signal(0);
   private readonly finesSummaryErrorState = signal<string | null>(null);
-  private readonly currencyState = signal('USD');
 
   private readonly recentActivityState = signal<AuditListItem[]>([]);
   private readonly recentActivityErrorState = signal<string | null>(null);
@@ -73,7 +74,7 @@ export class OverviewStore {
 
   readonly finesOutstanding = this.finesOutstandingState.asReadonly();
   readonly finesSummaryError = this.finesSummaryErrorState.asReadonly();
-  readonly currency = this.currencyState.asReadonly();
+  readonly currency = this.appSettings.currency;
 
   readonly recentActivity = this.recentActivityState.asReadonly();
   readonly recentActivityError = this.recentActivityErrorState.asReadonly();
@@ -85,6 +86,7 @@ export class OverviewStore {
     this.loadingState.set(true);
     try {
       await Promise.all([
+        this.appSettings.load(),
         this.loadHoldsReady(),
         this.loadDueToday(),
         this.loadTopOverdue(),
@@ -141,16 +143,10 @@ export class OverviewStore {
   }
 
   private async loadFinesSummary(): Promise<void> {
-    const [summary, currency] = await Promise.all([
-      this.finesRepo.summary(),
-      this.finesRepo.getCurrency(),
-    ]);
+    const summary = await this.finesRepo.summary();
     this.finesSummaryErrorState.set(summary.error);
     if (!summary.error && summary.row) {
       this.finesOutstandingState.set(summary.row.outstandingBalance);
-    }
-    if (!currency.error) {
-      this.currencyState.set(currency.currency);
     }
   }
 

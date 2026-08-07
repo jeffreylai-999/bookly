@@ -167,24 +167,6 @@ describe('FinesRepository', () => {
     expect(eqCalls).toEqual([['status', 'outstanding']]);
   });
 
-  it('reads the currency from the app_settings singleton', async () => {
-    const client = {
-      from: (table: string) => {
-        expect(table).toBe('app_settings');
-        return createQueryBuilder(() => ({ data: { currency: 'EUR' }, error: null }));
-      },
-    };
-
-    TestBed.configureTestingModule({
-      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: client }],
-    });
-
-    const repo = TestBed.inject(FinesRepository);
-    const result = await repo.getCurrency();
-
-    expect(result).toEqual({ currency: 'EUR', error: null });
-  });
-
   it('reads desk totals from the fines_summary view', async () => {
     const client = {
       from: (table: string) => {

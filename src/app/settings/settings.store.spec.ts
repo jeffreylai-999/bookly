@@ -95,7 +95,7 @@ async function createStore(repo: ReturnType<typeof repoFake>, log = vi.fn().mock
 describe('SettingsStore', () => {
   it('init loads member types and app settings together', async () => {
     const repo = repoFake();
-    const { store } = await createStore(repo);
+    const { store, appSettings } = await createStore(repo);
 
     await store.init();
 
@@ -103,6 +103,7 @@ describe('SettingsStore', () => {
     expect(store.error()).toBeNull();
     expect(store.memberTypes()).toEqual([sampleType]);
     expect(store.appSettings()).toEqual(sampleSettings);
+    expect(appSettings.set).toHaveBeenCalledWith(sampleSettings);
   });
 
   it('init surfaces a load error and clears state', async () => {

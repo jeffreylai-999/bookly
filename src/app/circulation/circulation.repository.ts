@@ -27,8 +27,6 @@ const LOAN_SELECT =
 const LOAN_LIST_SELECT =
   '*, copy:copies(id, barcode, titles(title, author)), member:members(id, name, card_barcode)';
 
-export type DeskSettings = Pick<Tables<'app_settings'>, 'currency' | 'damaged_fee_default'>;
-
 /**
  * The member-panel money line: balance from materialized fines only (the same
  * sum the checkout gate enforces), projected from the overdue_loans view —
@@ -229,16 +227,6 @@ export class CirculationRepository {
     );
 
     return { row: { balance, projected }, error: null };
-  }
-
-  async getSettings(): Promise<{ row: DeskSettings | null; error: string | null }> {
-    const { data, error } = await this.supabase
-      .from('app_settings')
-      .select('currency, damaged_fee_default')
-      .eq('id', true)
-      .single();
-
-    return { row: data ?? null, error: error?.message ?? null };
   }
 
   async countWaitingHolds(

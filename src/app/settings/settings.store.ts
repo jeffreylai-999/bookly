@@ -48,6 +48,9 @@ export class SettingsStore {
       }
       this.memberTypesState.set(types.rows);
       this.appSettingsState.set(settings.row);
+      if (settings.row) {
+        this.appSettingsCache.set(settings.row);
+      }
     } finally {
       this.loadingState.set(false);
     }
