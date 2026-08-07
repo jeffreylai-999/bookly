@@ -1,0 +1,49 @@
+name: SQL Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: '10.11.0'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # DB-only gates: SQL runners docker-exec into Postgres. Auth/API/Studio
+      # are not required (fixtures insert auth.users directly; seed.sql applies
+      # on start). Excluding unused services keeps CI pull + boot time down.
+      - name: Start Supabase (database + essentials)
+        run: >
+          pnpm run supabase:start --
+          -x auth,rest,realtime,storage,imgproxy,studio,inbucket,vector,meta,edge-runtime,logflare
+
+      - name: Run SQL gate tests
+        run: pnpm test:sql
+
+      - name: Stop Supabase
+        if: always()
+        run: pnpm supabase:stop

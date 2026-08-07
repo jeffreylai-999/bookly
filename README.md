@@ -13,7 +13,7 @@ A **staff-facing library desk tool** for circulation, catalog management, member
 ## Prerequisites
 
 - **Node.js** ≥ 22.22.3 (or 24 / 26)
-- **pnpm** 10.x (`npm install -g pnpm`)
+- **pnpm** 10.x (`npm install -g pnpm`) — repo pins `pnpm@10.11.0` via `packageManager`
 - **Docker** (required to run the local Supabase stack)
 
 ## Getting Started
@@ -47,8 +47,10 @@ Copy `.env.example` to `.env` and fill in the values shown by `pnpm supabase:sta
 
 ```bash
 cp .env.example .env
-# then edit .env with your local SUPABASE_URL and SUPABASE_ANON_KEY
+# then edit .env with SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY
 ```
+
+`pnpm seed:auth` needs the **service role** key (local `.env` only — never commit it).
 
 > The Angular app reads credentials from `src/environments/environment*.ts`, **not** from `.env`. The `.env` file is used only by Node seed/admin scripts.
 
@@ -73,6 +75,10 @@ pnpm start
 
 Open your browser and navigate to `http://localhost:4200/`. The application reloads automatically when source files change.
 
+### Login note (local)
+
+With the pinned Supabase CLI, `[auth.email] enable_signup = false` can disable the entire email provider (`422 email_provider_disabled`). Self-signup is intentionally off; sign-in should still work. Until the upstream CLI fix ships, a one-off workaround is: temporarily set `[auth.email] enable_signup = true` in `supabase/config.toml`, run `pnpm supabase:stop && pnpm supabase:start`, then revert the file. Details: `AGENTS.md`.
+
 ## Available Scripts
 
 | Script | Description |
@@ -80,6 +86,7 @@ Open your browser and navigate to `http://localhost:4200/`. The application relo
 | `pnpm start` | Start the Angular SSR dev server at `http://localhost:4200` |
 | `pnpm build` | Production build (output in `dist/bookly/`) |
 | `pnpm test` | Run unit tests with Vitest (headless) |
+| `pnpm test:sql` | Run all SQL gate tests (requires Supabase stack) |
 | `pnpm supabase:start` | Start the local Supabase stack |
 | `pnpm supabase:stop` | Stop the local Supabase stack |
 | `pnpm supabase:status` | Show running services and API keys |
@@ -100,7 +107,12 @@ Uses the Angular `unit-test` builder backed by Vitest and jsdom. Pass `CI=true` 
 These tests require the local Supabase stack to be running (`pnpm supabase:start`).
 
 ```bash
+# all gates
+pnpm test:sql
+
+# or individually
 pnpm test:sql:profiles-role
+pnpm test:sql:profiles-select-admin
 pnpm test:sql:members
 pnpm test:sql:copies-status
 pnpm test:sql:checkout
@@ -116,6 +128,16 @@ pnpm test:sql:cron
 pnpm test:sql:settings
 ```
 
+## CI
+
+On pushes and pull requests to `main`, GitHub Actions runs:
+
+- **Unit Tests** — `CI=true pnpm test`
+- **SQL Tests** — local Supabase in Docker, then `pnpm test:sql`
+- **CodeQL** — JavaScript/TypeScript static analysis
+
+Workflows live in `.github/workflows/`.
+
 ## Project Structure
 
 ```
@@ -125,6 +147,7 @@ supabase/
   seed.sql            Reference/catalog seed data
   tests/              SQL test scripts
 scripts/              Node.js tooling scripts (seed, type-gen, SQL test runners)
+.github/workflows/    CI (unit, SQL, CodeQL)
 docs/                 Architecture decisions (ADRs), design notes, plans
 ```
 
