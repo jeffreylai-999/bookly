@@ -1,4 +1,12 @@
-import { Service, computed, inject, signal } from '@angular/core';
+import {
+  ApplicationRef,
+  Service,
+  computed,
+  effect,
+  inject,
+  resource,
+  signal,
+} from '@angular/core';
 
 import { pageCount } from '../ui';
 import { HoldsRepository } from './holds.repository';
@@ -6,35 +14,63 @@ import type { HoldListItem, HoldsError, HoldStatusFilter } from './holds.types';
 
 const DEFAULT_PAGE_SIZE = 10;
 
+type HoldsListValue = { rows: HoldListItem[]; total: number };
+type HoldsListParams = {
+  status: HoldStatusFilter;
+  page: number;
+  pageSize: number;
+};
+
 @Service()
 export class HoldsStore {
   private readonly repo = inject(HoldsRepository);
-  /** Bumped on each load so stale responses cannot overwrite newer results. */
-  private loadGeneration = 0;
+  private readonly appRef = inject(ApplicationRef);
 
-  private readonly rowsState = signal<HoldListItem[]>([]);
-  private readonly totalState = signal(0);
   private readonly statusState = signal<HoldStatusFilter>('');
   private readonly pageState = signal(1);
   private readonly pageSizeState = signal(DEFAULT_PAGE_SIZE);
-  private readonly loadingState = signal(false);
-  private readonly errorState = signal<string | null>(null);
   private readonly busyIdState = signal<string | null>(null);
+  /** Sticky list value so filter/page loads don't blank the table mid-flight. */
+  private readonly rowsState = signal<HoldListItem[]>([]);
+  private readonly totalState = signal(0);
+  /** `undefined` keeps the resource idle until the first imperative load. */
+  private readonly query = signal<HoldsListParams | undefined>(undefined);
+
+  private readonly listResource = resource({
+    params: () => this.query(),
+    loader: async ({ params, abortSignal }): Promise<HoldsListValue> => {
+      const list = await this.repo.listHolds(params.status, {
+        page: params.page,
+        pageSize: params.pageSize,
+      });
+      if (abortSignal.aborted) {
+        throw new DOMException('The operation was aborted.', 'AbortError');
+      }
+      if (list.error) {
+        throw new Error('load_failed');
+      }
+      return { rows: list.rows, total: list.total };
+    },
+  });
 
   readonly rows = this.rowsState.asReadonly();
   readonly total = this.totalState.asReadonly();
   readonly status = this.statusState.asReadonly();
   readonly page = this.pageState.asReadonly();
   readonly pageSize = this.pageSizeState.asReadonly();
-  readonly loading = this.loadingState.asReadonly();
-  readonly error = this.errorState.asReadonly();
+  readonly loading = this.listResource.isLoading;
+  readonly error = computed(() => {
+    const err = this.listResource.error();
+    if (err == null || err.name === 'AbortError') return null;
+    return 'load_failed';
+  });
   readonly busyId = this.busyIdState.asReadonly();
 
   readonly hasActiveFilters = computed(() => this.statusState() !== '');
 
   /** True only for a successful empty result — not while loading or after a load error. */
   readonly isEmpty = computed(
-    () => !this.loadingState() && this.errorState() === null && this.totalState() === 0,
+    () => !this.loading() && this.error() === null && this.totalState() === 0,
   );
 
   /**
@@ -60,62 +96,43 @@ export class HoldsStore {
     );
   });
 
-  async load(): Promise<void> {
-    const generation = ++this.loadGeneration;
-    this.loadingState.set(true);
-    this.errorState.set(null);
-    try {
-      const page = this.pageState();
-      const pageSize = this.pageSizeState();
-      const list = await this.repo.listHolds(this.statusState(), { page, pageSize });
-      if (generation !== this.loadGeneration) {
-        return;
-      }
-      if (list.error) {
-        this.errorState.set('load_failed');
+  constructor() {
+    effect(() => {
+      const err = this.listResource.error();
+      if (err != null) {
+        // Aborted loaders must not wipe the sticky list or surface as failures.
+        if (err.name === 'AbortError') return;
         this.rowsState.set([]);
         this.totalState.set(0);
         return;
       }
+      const value = this.listResource.value();
+      if (value) {
+        this.rowsState.set(value.rows);
+        this.totalState.set(value.total);
+      }
+    });
+  }
 
-      const maxPage = pageCount(list.total, pageSize);
-      if (list.total > 0 && page > maxPage) {
-        this.pageState.set(maxPage);
-        await this.load();
-        return;
-      }
-
-      this.rowsState.set(list.rows);
-      this.totalState.set(list.total);
-    } catch {
-      if (generation !== this.loadGeneration) {
-        return;
-      }
-      this.errorState.set('load_failed');
-      this.rowsState.set([]);
-      this.totalState.set(0);
-    } finally {
-      if (generation === this.loadGeneration) {
-        this.loadingState.set(false);
-      }
-    }
+  async load(): Promise<void> {
+    await this.runQuery(this.currentParams());
   }
 
   async applyStatus(status: HoldStatusFilter): Promise<void> {
     this.statusState.set(status);
     this.pageState.set(1);
-    await this.load();
+    await this.runQuery(this.currentParams());
   }
 
   async applyPage(page: number): Promise<void> {
     this.pageState.set(Math.max(1, page));
-    await this.load();
+    await this.runQuery(this.currentParams());
   }
 
   async clearFilters(): Promise<void> {
     this.statusState.set('');
     this.pageState.set(1);
-    await this.load();
+    await this.runQuery(this.currentParams());
   }
 
   async markReady(
@@ -148,6 +165,45 @@ export class HoldsStore {
       return { ok: true };
     } finally {
       this.busyIdState.set(null);
+    }
+  }
+
+  private currentParams(): HoldsListParams {
+    return {
+      status: this.statusState(),
+      page: this.pageState(),
+      pageSize: this.pageSizeState(),
+    };
+  }
+
+  /**
+   * Thin bridge from Promise-based call sites onto `resource()`: publish params
+   * (or reload when they are unchanged) and wait for PendingTasks to drain.
+   * Page clamp runs after settlement so the loader stays pure.
+   */
+  private async runQuery(params: HoldsListParams): Promise<void> {
+    const current = this.query();
+    if (
+      current &&
+      current.status === params.status &&
+      current.page === params.page &&
+      current.pageSize === params.pageSize
+    ) {
+      this.listResource.reload();
+    } else {
+      this.query.set(params);
+    }
+    await this.appRef.whenStable();
+
+    if (this.error() != null) {
+      return;
+    }
+    const total = this.totalState();
+    const pageSize = this.pageSizeState();
+    const maxPage = pageCount(total, pageSize);
+    if (total > 0 && this.pageState() > maxPage) {
+      this.pageState.set(maxPage);
+      await this.runQuery(this.currentParams());
     }
   }
 }

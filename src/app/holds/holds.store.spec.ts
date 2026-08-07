@@ -139,4 +139,82 @@ describe('HoldsStore', () => {
     expect(cancelHold).toHaveBeenCalledWith('h1');
     expect(listHolds).toHaveBeenCalled();
   });
+
+  it('keeps the previous rows visible while a filter load is in flight', async () => {
+    const first = holdRow({ id: 'h-first' });
+    const deferred: {
+      resolve: (value: { rows: HoldListItem[]; total: number; error: null }) => void;
+    } = {
+      resolve: () => undefined,
+    };
+    const listHolds = vi.fn().mockImplementation(async (status: string) => {
+      if (status === '') {
+        return { rows: [first], total: 1, error: null };
+      }
+      return new Promise<{ rows: HoldListItem[]; total: number; error: null }>((resolve) => {
+        deferred.resolve = resolve;
+      });
+    });
+    const store = setup({ listHolds });
+    await store.load();
+
+    const pending = store.applyStatus('waiting');
+    await vi.waitFor(() => {
+      expect(listHolds).toHaveBeenCalledWith('waiting', { page: 1, pageSize: 10 });
+    });
+    expect(store.loading()).toBe(true);
+    expect(store.rows()).toEqual([first]);
+
+    deferred.resolve({ rows: [], total: 0, error: null });
+    await pending;
+
+    expect(store.rows()).toEqual([]);
+    expect(store.loading()).toBe(false);
+  });
+
+  it('ignores stale load results after a newer load starts', async () => {
+    const deferred: {
+      resolve: (value: { rows: HoldListItem[]; total: number; error: null }) => void;
+    } = {
+      resolve: () => undefined,
+    };
+    const readyRow = holdRow({ id: 'h-ready', status: 'ready' });
+    const listHolds = vi.fn().mockImplementation(async (status: string) => {
+      if (status === 'waiting') {
+        return new Promise<{ rows: HoldListItem[]; total: number; error: null }>((resolve) => {
+          deferred.resolve = resolve;
+        });
+      }
+      return { rows: [readyRow], total: 1, error: null };
+    });
+    const store = setup({ listHolds });
+
+    const slow = store.applyStatus('waiting');
+    await store.applyStatus('ready');
+    deferred.resolve({ rows: [], total: 0, error: null });
+    await slow;
+
+    expect(store.status()).toBe('ready');
+    expect(store.rows()).toEqual([readyRow]);
+    expect(store.total()).toBe(1);
+  });
+
+  it('clamps an out-of-range page and reloads', async () => {
+    const listHolds = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], total: 5, error: null })
+      .mockResolvedValueOnce({
+        rows: [holdRow({ id: 'h-page1' })],
+        total: 5,
+        error: null,
+      });
+    const store = setup({ listHolds });
+
+    await store.applyPage(9);
+
+    expect(store.page()).toBe(1);
+    expect(store.rows()).toEqual([holdRow({ id: 'h-page1' })]);
+    expect(listHolds).toHaveBeenCalledTimes(2);
+    expect(listHolds).toHaveBeenLastCalledWith('', { page: 1, pageSize: 10 });
+  });
 });
