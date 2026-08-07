@@ -1,8 +1,20 @@
 import { TestBed } from '@angular/core/testing';
 
 import { HoldsRepository } from './holds.repository';
+import type { ListResult } from './holds.repository';
 import { HoldsStore } from './holds.store';
 import type { HoldListItem } from './holds.types';
+
+type HoldsList = ListResult<HoldListItem>;
+
+/** `Promise.withResolvers` needs lib ES2024; the project targets ES2022. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve: (value: T) => resolve(value) };
+}
 
 function holdRow(overrides: Partial<HoldListItem>): HoldListItem {
   return {
@@ -138,5 +150,98 @@ describe('HoldsStore', () => {
     expect(result).toEqual({ ok: true });
     expect(cancelHold).toHaveBeenCalledWith('h1');
     expect(listHolds).toHaveBeenCalled();
+  });
+
+  it('keeps the previous rows visible while a filter load is in flight', async () => {
+    const first = holdRow({ id: 'h-first' });
+    const slow = deferred<HoldsList>();
+    const listHolds = vi.fn().mockImplementation(async (status: string) => {
+      if (status === '') {
+        return { rows: [first], total: 1, error: null };
+      }
+      return slow.promise;
+    });
+    const store = setup({ listHolds });
+    await store.load();
+
+    const pending = store.applyStatus('waiting');
+    await vi.waitFor(() => {
+      expect(listHolds).toHaveBeenCalledWith('waiting', { page: 1, pageSize: 10 });
+    });
+    expect(store.loading()).toBe(true);
+    expect(store.rows()).toEqual([first]);
+
+    slow.resolve({ rows: [], total: 0, error: null });
+    await pending;
+
+    expect(store.rows()).toEqual([]);
+    expect(store.loading()).toBe(false);
+  });
+
+  it('ignores stale load results after a newer load starts', async () => {
+    const stale = deferred<HoldsList>();
+    const readyRow = holdRow({ id: 'h-ready', status: 'ready' });
+    const listHolds = vi.fn().mockImplementation(async (status: string) => {
+      if (status === 'waiting') {
+        return stale.promise;
+      }
+      return { rows: [readyRow], total: 1, error: null };
+    });
+    const store = setup({ listHolds });
+
+    const pending = store.applyStatus('waiting');
+    await vi.waitFor(() => {
+      expect(listHolds).toHaveBeenCalledWith('waiting', { page: 1, pageSize: 10 });
+    });
+    await store.applyStatus('ready');
+    stale.resolve({ rows: [], total: 0, error: null });
+    await pending;
+
+    expect(store.status()).toBe('ready');
+    expect(store.rows()).toEqual([readyRow]);
+    expect(store.total()).toBe(1);
+  });
+
+  it('refetches a load issued with unchanged params while one is in flight', async () => {
+    const stale = holdRow({ id: 'h-stale' });
+    const fresh = holdRow({ id: 'h-fresh' });
+    const slow = deferred<HoldsList>();
+    const listHolds = vi
+      .fn()
+      .mockImplementationOnce(async () => slow.promise)
+      .mockImplementation(async () => ({ rows: [fresh], total: 1, error: null }));
+    const store = setup({ listHolds });
+
+    // A read is in flight when the mutation's refresh lands on identical params:
+    // `resource.reload()` no-ops while loading, so the refresh must be a new request.
+    const pending = store.load();
+    await vi.waitFor(() => {
+      expect(listHolds).toHaveBeenCalledTimes(1);
+    });
+    const refreshed = store.load();
+    slow.resolve({ rows: [stale], total: 1, error: null });
+    await Promise.all([pending, refreshed]);
+
+    expect(listHolds).toHaveBeenCalledTimes(2);
+    expect(store.rows()).toEqual([fresh]);
+  });
+
+  it('clamps an out-of-range page and reloads', async () => {
+    const listHolds = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], total: 5, error: null })
+      .mockResolvedValueOnce({
+        rows: [holdRow({ id: 'h-page1' })],
+        total: 5,
+        error: null,
+      });
+    const store = setup({ listHolds });
+
+    await store.applyPage(9);
+
+    expect(store.page()).toBe(1);
+    expect(store.rows()).toEqual([holdRow({ id: 'h-page1' })]);
+    expect(listHolds).toHaveBeenCalledTimes(2);
+    expect(listHolds).toHaveBeenLastCalledWith('', { page: 1, pageSize: 10 });
   });
 });
