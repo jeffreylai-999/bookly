@@ -1,6 +1,6 @@
 import { vi, type Mock } from 'vitest';
 
-import type { PostgrestClient } from './postgrest-access';
+import type { AppSupabaseClient } from '../supabase/client.types';
 
 export type QueryBuilderMockResult = {
   data: unknown;
@@ -8,6 +8,16 @@ export type QueryBuilderMockResult = {
   count?: number | null;
 };
 
+/** A fixed payload, or a resolver called each time the builder is awaited. */
+export type QueryBuilderMockPayload =
+  | QueryBuilderMockResult
+  | (() => QueryBuilderMockResult | Promise<QueryBuilderMockResult>);
+
+/**
+ * Mirrors the raw client's query builder, writes included: `from` is a
+ * pass-through, so staff-allowed non-flow writes still happen at call sites.
+ * The facade itself exposes no write helper (ADR-0001).
+ */
 const QUERY_METHODS = [
   'select',
   'insert',
@@ -38,39 +48,51 @@ export type QueryBuilderMock = {
   then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) => Promise<unknown>;
 };
 
+function resolvePayload(payload: QueryBuilderMockPayload) {
+  return typeof payload === 'function' ? payload() : payload;
+}
+
 /**
  * Shared chainable PostgREST query-builder double for repository specs.
  * Methods are `vi.fn` spies that return `this`, and the builder is thenable.
+ * Pass a resolver when one repository method queries several tables and each
+ * await needs a different payload.
  */
-export function createQueryBuilderMock(result: QueryBuilderMockResult): QueryBuilderMock {
+export function createQueryBuilderMock(payload: QueryBuilderMockPayload): QueryBuilderMock {
   const builder = {} as QueryBuilderMock;
 
   for (const method of QUERY_METHODS) {
     builder[method] = vi.fn().mockReturnValue(builder);
   }
 
-  builder.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
+  builder.then = (resolve, reject) => Promise.resolve(resolvePayload(payload)).then(resolve, reject);
   return builder;
 }
 
 export type PostgrestClientMockOptions = {
-  fromBuilder?: QueryBuilderMock;
-  rpcResult?: QueryBuilderMockResult;
+  /** One builder for every table, or a resolver keyed on the table name. */
+  from?: QueryBuilderMock | ((table: string) => QueryBuilderMock);
+  /** One payload for every function, or a resolver keyed on the function name. */
+  rpc?:
+    | QueryBuilderMockResult
+    | ((fn: string, args?: unknown) => QueryBuilderMockResult | Promise<QueryBuilderMockResult>);
 };
 
 /**
  * Minimal Supabase client double: `from` returns a query builder mock,
- * `rpc` resolves to a configured `{ data, error }` payload.
+ * `rpc` resolves to a configured `{ data, error }` payload. Cast to
+ * `AppSupabaseClient` here so specs don't repeat it.
  */
 export function createPostgrestClientMock(
   options: PostgrestClientMockOptions = {},
-): PostgrestClient & { from: Mock; rpc: Mock } {
-  const fromBuilder =
-    options.fromBuilder ?? createQueryBuilderMock({ data: null, error: null });
-  const rpcResult = options.rpcResult ?? { data: null, error: null };
+): AppSupabaseClient & { from: Mock; rpc: Mock } {
+  const from = options.from ?? createQueryBuilderMock({ data: null, error: null });
+  const rpc = options.rpc ?? { data: null, error: null };
 
   return {
-    from: vi.fn().mockReturnValue(fromBuilder),
-    rpc: vi.fn().mockResolvedValue(rpcResult),
-  };
+    from: vi.fn((table: string) => (typeof from === 'function' ? from(table) : from)),
+    rpc: vi.fn(async (fn: string, args?: unknown) =>
+      typeof rpc === 'function' ? rpc(fn, args) : rpc,
+    ),
+  } as unknown as AppSupabaseClient & { from: Mock; rpc: Mock };
 }

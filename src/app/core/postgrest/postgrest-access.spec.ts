@@ -1,17 +1,11 @@
-import type { AppSupabaseClient } from '../supabase';
 import {
   createPostgrestAccess,
   mapPostgresCode,
   mapRpcError,
   pageToRange,
   toAccessResult,
-  type PostgrestClient,
 } from './postgrest-access';
 import { createPostgrestClientMock, createQueryBuilderMock } from './postgrest-access.testing';
-
-/** Compile-time: real Supabase client satisfies the access facade contract. */
-const _appClientIsPostgrestClient = (client: AppSupabaseClient): PostgrestClient => client;
-void _appClientIsPostgrestClient;
 
 describe('pageToRange', () => {
   it('converts 1-based page and pageSize to inclusive PostgREST range bounds', () => {
@@ -89,69 +83,62 @@ describe('mapRpcError', () => {
 });
 
 describe('mapPostgresCode', () => {
-  it('maps known Postgres codes to domain errors', () => {
-    expect(
-      mapPostgresCode('23505', [
-        { code: '23505', error: 'name_taken' },
-        { code: '23503', error: 'member_type_in_use' },
-      ], 'save_failed'),
-    ).toBe('name_taken');
+  const CODES = { '23505': 'name_taken', '23503': 'member_type_in_use' } as const;
 
-    expect(
-      mapPostgresCode('23503', [
-        { code: '23505', error: 'name_taken' },
-        { code: '23503', error: 'member_type_in_use' },
-      ], 'save_failed'),
-    ).toBe('member_type_in_use');
+  it('maps known Postgres codes to domain errors', () => {
+    expect(mapPostgresCode('23505', CODES, 'save_failed')).toBe('name_taken');
+    expect(mapPostgresCode('23503', CODES, 'member_type_in_use')).toBe('member_type_in_use');
   });
 
   it('returns the fallback for unknown or missing codes', () => {
-    expect(mapPostgresCode('42P01', [{ code: '23505', error: 'name_taken' }], 'save_failed')).toBe(
-      'save_failed',
-    );
-    expect(mapPostgresCode(null, [{ code: '23505', error: 'name_taken' }], 'save_failed')).toBe(
-      'save_failed',
-    );
+    expect(mapPostgresCode('42P01', CODES, 'save_failed')).toBe('save_failed');
+    expect(mapPostgresCode(null, CODES, 'save_failed')).toBe('save_failed');
+    expect(mapPostgresCode(undefined, CODES, 'save_failed')).toBe('save_failed');
   });
 });
 
 describe('createPostgrestAccess', () => {
   it('exposes rpc that returns the unified PostgrestAccessResult shape', async () => {
     const client = createPostgrestClientMock({
-      rpcResult: { data: [{ id: 'loan-1' }], error: null },
+      rpc: { data: [{ id: 'loan-1' }], error: null },
     });
     const access = createPostgrestAccess(client);
 
-    await expect(access.rpc('checkout', { p_member_id: 'm1' })).resolves.toEqual({
+    await expect(
+      access.rpc('checkout', { p_member_id: 'm1', p_copy_barcodes: ['c1'] }),
+    ).resolves.toEqual({
       ok: true,
       data: [{ id: 'loan-1' }],
       count: null,
     });
-    expect(client.rpc).toHaveBeenCalledWith('checkout', { p_member_id: 'm1' });
+    expect(client.rpc).toHaveBeenCalledWith('checkout', {
+      p_member_id: 'm1',
+      p_copy_barcodes: ['c1'],
+    });
   });
 
   it('maps rpc transport errors through toAccessResult', async () => {
     const client = createPostgrestClientMock({
-      rpcResult: { data: null, error: { message: 'member_suspended', code: 'P0001' } },
+      rpc: { data: null, error: { message: 'member_suspended', code: 'P0001' } },
     });
     const access = createPostgrestAccess(client);
 
-    await expect(access.rpc('checkout')).resolves.toEqual({
+    await expect(
+      access.rpc('checkout', { p_member_id: 'm1', p_copy_barcodes: ['c1'] }),
+    ).resolves.toEqual({
       ok: false,
       error: { message: 'member_suspended', code: 'P0001' },
     });
   });
 
-  it('passes through from() for reads without offering insert/update/delete helpers', () => {
+  it('passes through from() for reads and offers no write path (ADR-0001)', () => {
     const builder = createQueryBuilderMock({ data: [], error: null, count: 0 });
-    const client = createPostgrestClientMock({ fromBuilder: builder });
+    const client = createPostgrestClientMock({ from: builder });
     const access = createPostgrestAccess(client);
 
     expect(access.from('members')).toBe(builder);
     expect(client.from).toHaveBeenCalledWith('members');
-    expect(access).not.toHaveProperty('insert');
-    expect(access).not.toHaveProperty('update');
-    expect(access).not.toHaveProperty('delete');
+    expect(Object.keys(access).sort()).toEqual(['from', 'rpc']);
   });
 });
 
@@ -169,5 +156,45 @@ describe('createQueryBuilderMock', () => {
     expect(builder.eq).toHaveBeenCalledWith('id', '1');
     expect(builder.range).toHaveBeenCalledWith(0, 9);
     expect(result).toEqual({ data: [{ id: '1' }], error: null, count: 1 });
+  });
+
+  it('calls a payload resolver on every await, so one builder can serve several queries', async () => {
+    const payloads = [
+      { data: [{ id: 'a' }], error: null },
+      { data: [{ id: 'b' }], error: null },
+    ];
+    const builder = createQueryBuilderMock(() => payloads.shift()!);
+
+    expect(await builder.select('*')).toEqual({ data: [{ id: 'a' }], error: null });
+    expect(await builder.select('*')).toEqual({ data: [{ id: 'b' }], error: null });
+  });
+});
+
+describe('createPostgrestClientMock', () => {
+  it('resolves from() per table so one client can serve a multi-table method', async () => {
+    const fines = createQueryBuilderMock({ data: [{ amount: 5 }], error: null });
+    const payments = createQueryBuilderMock({ data: [{ amount: 2 }], error: null });
+    const client = createPostgrestClientMock({
+      from: (table) => (table === 'fines' ? fines : payments),
+    });
+
+    expect(await client.from('fines').select('*')).toEqual({ data: [{ amount: 5 }], error: null });
+    expect(await client.from('payments').select('*')).toEqual({
+      data: [{ amount: 2 }],
+      error: null,
+    });
+  });
+
+  it('resolves rpc() per function name', async () => {
+    const client = createPostgrestClientMock({
+      rpc: (fn) => ({ data: fn, error: null }),
+    });
+    const access = createPostgrestAccess(client);
+
+    await expect(access.rpc('cron_local_run_date', {
+      p_last_run: '2026-01-01',
+      p_now: '2026-01-02',
+      p_timezone: 'UTC',
+    })).resolves.toEqual({ ok: true, data: 'cron_local_run_date', count: null });
   });
 });

@@ -1,8 +1,8 @@
 export type {
   PostgrestAccess,
   PostgrestAccessResult,
-  PostgrestClient,
   PostgrestFailure,
+  RpcName,
 } from './postgrest-access';
 export {
   createPostgrestAccess,

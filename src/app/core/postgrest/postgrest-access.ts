@@ -1,18 +1,10 @@
-/**
- * Minimal client surface the access facade needs (ADR-0001: rpc + from for reads).
- * Method syntax (not property) so `AppSupabaseClient` stays assignable under
- * `strictFunctionTypes` — call-site params are checked bivariantly for methods.
- */
-export interface PostgrestClient {
-  from(relation: string): unknown;
-  rpc(
-    fn: string,
-    args?: Record<string, unknown>,
-  ): PromiseLike<{
-    data: unknown;
-    error: { message: string; code?: string } | null;
-  }>;
-}
+import type { AppSupabaseClient } from '../supabase/client.types';
+import type { Database } from '../supabase/database.types';
+
+type Functions = Database['public']['Functions'];
+
+/** Name of a database function exposed to PostgREST. */
+export type RpcName = keyof Functions;
 
 /** Transport-level PostgREST failure carried in PostgrestAccessResult. */
 export interface PostgrestFailure {
@@ -74,35 +66,44 @@ export function mapRpcError<TError extends string>(
 /** Map a Postgres/PostgREST error code to a domain error via an explicit table. */
 export function mapPostgresCode<TError extends string>(
   code: string | null | undefined,
-  mapping: ReadonlyArray<{ code: string; error: TError }>,
+  mapping: Readonly<Record<string, TError>>,
   fallback: TError,
 ): TError {
-  if (!code) return fallback;
-  for (const entry of mapping) {
-    if (entry.code === code) return entry.error;
-  }
-  return fallback;
+  return (code ? mapping[code] : undefined) ?? fallback;
 }
+
+/**
+ * Shape of `AppSupabaseClient.rpc` erased to a single callable. The generated
+ * overloads can't be applied to an unresolved `TFn`, so the facade narrows once
+ * here and keeps the typed signature on its own `rpc` below.
+ */
+type RpcInvoke = (
+  fn: string,
+  args?: unknown,
+) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
 
 /**
  * Thin PostgREST access facade.
  *
  * - `from` is the client's typed query entry (reads; staff-allowed non-flow
  *   writes stay at the call site). This module offers no insert/update/delete helpers.
- * - Flow mutations must go through `rpc()` (ADR-0001).
+ * - Flow mutations must go through `rpc()` (ADR-0001), whose function names,
+ *   argument names and return payloads stay checked against `database.types`.
  */
-export function createPostgrestAccess<TClient extends PostgrestClient>(client: TClient) {
-  return {
-    from: client.from.bind(client) as TClient['from'],
+export function createPostgrestAccess(client: AppSupabaseClient) {
+  const invokeRpc = client.rpc.bind(client) as RpcInvoke;
 
-    async rpc<T>(fn: string, args?: Record<string, unknown>): Promise<PostgrestAccessResult<T>> {
-      const { data, error } = await client.rpc(fn, args);
-      return toAccessResult({ data: data as T, error });
+  return {
+    from: client.from.bind(client) as AppSupabaseClient['from'],
+
+    async rpc<TFn extends RpcName>(
+      fn: TFn,
+      args: Functions[TFn]['Args'],
+    ): Promise<PostgrestAccessResult<Functions[TFn]['Returns']>> {
+      const { data, error } = await invokeRpc(fn, args);
+      return toAccessResult({ data: data as Functions[TFn]['Returns'], error });
     },
   };
 }
 
-export type PostgrestAccess<TClient extends PostgrestClient = PostgrestClient> = {
-  from: TClient['from'];
-  rpc: <T>(fn: string, args?: Record<string, unknown>) => Promise<PostgrestAccessResult<T>>;
-};
+export type PostgrestAccess = ReturnType<typeof createPostgrestAccess>;
