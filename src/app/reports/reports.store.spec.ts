@@ -1,4 +1,3 @@
-import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { AppSettingsService } from '../core/app-settings';
@@ -16,29 +15,21 @@ const emptyData: ReportsData = {
   genreBreakdown: [],
 };
 
-function setup(
-  repoOverrides: Record<string, unknown> = {},
-  appSettingsOverrides: Partial<AppSettingsService> = {},
-) {
-  const currency = signal('EUR');
+function setup(repoOverrides: Record<string, unknown> = {}, reportRangeDays: number | null = 14) {
   TestBed.configureTestingModule({
     providers: [
       ReportsStore,
       {
         provide: AppSettingsService,
         useValue: {
-          currency: currency.asReadonly(),
+          currency: () => 'EUR',
+          reportRangeDays: () => reportRangeDays,
           load: vi.fn().mockResolvedValue(undefined),
-          ...appSettingsOverrides,
         },
       },
       {
         provide: ReportsRepository,
         useValue: {
-          getSettings: vi.fn().mockResolvedValue({
-            settings: { defaultRangeDays: 14 },
-            error: null,
-          }),
           loadAll: vi.fn().mockResolvedValue({ data: emptyData, error: null }),
           ...repoOverrides,
         },
@@ -49,20 +40,15 @@ function setup(
 }
 
 describe('ReportsStore', () => {
-  it('initializes range from app_settings, currency from AppSettings, and loads metrics', async () => {
-    const getSettings = vi
-      .fn()
-      .mockResolvedValue({ settings: { defaultRangeDays: 30 }, error: null });
-    const load = vi.fn().mockResolvedValue(undefined);
+  it('initializes range and currency from AppSettings, then loads metrics', async () => {
     const loadAll = vi.fn().mockResolvedValue({
       data: { ...emptyData, overdueAging: [{ bucket: '1-7', bucket_order: 1, loan_count: 3 }] },
       error: null,
     });
-    const store = setup({ getSettings, loadAll }, { load });
+    const store = setup({ loadAll }, 30);
 
     await store.init();
 
-    expect(load).toHaveBeenCalled();
     expect(store.currency()).toBe('EUR');
     expect(store.range()).toBe(30);
     expect(loadAll).toHaveBeenCalledWith(30);
@@ -72,16 +58,16 @@ describe('ReportsStore', () => {
     expect(store.error()).toBeNull();
   });
 
-  it('keeps the built-in 14-day default when the settings read fails', async () => {
-    const getSettings = vi
-      .fn()
-      .mockResolvedValue({ settings: { defaultRangeDays: 7 }, error: 'boom' });
-    const store = setup({ getSettings });
+  it.each([null, 99])(
+    'keeps the built-in 14-day default when the stored range is %o',
+    async (stored) => {
+      const store = setup({}, stored);
 
-    await store.init();
+      await store.init();
 
-    expect(store.range()).toBe(14);
-  });
+      expect(store.range()).toBe(14);
+    },
+  );
 
   it('setRange reloads with the new range and is a no-op when unchanged', async () => {
     const loadAll = vi.fn().mockResolvedValue({ data: emptyData, error: null });

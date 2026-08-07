@@ -2,6 +2,7 @@ import { Service, computed, inject, signal } from '@angular/core';
 
 import { AppSettingsService } from '../core/app-settings';
 import { ReportsRepository } from './reports.repository';
+import { isRangeDays } from './reports.types';
 import type {
   DeadStockRow,
   FineCollectionRow,
@@ -53,9 +54,9 @@ export class ReportsStore {
 
   async init(): Promise<void> {
     await this.appSettings.load();
-    const { settings, error } = await this.repo.getSettings();
-    if (!error) {
-      this.rangeState.set(settings.defaultRangeDays);
+    const stored = this.appSettings.reportRangeDays();
+    if (stored !== null && isRangeDays(stored)) {
+      this.rangeState.set(stored);
     }
     await this.load();
   }

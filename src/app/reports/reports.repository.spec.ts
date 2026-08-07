@@ -3,65 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { SUPABASE_CLIENT } from '../core/supabase';
 import { ReportsRepository } from './reports.repository';
 
-type QueryResult = { data: unknown; error: { message: string } | null };
-
-function createQueryBuilder(resolve: () => QueryResult) {
-  const builder: Record<string, unknown> = {};
-  const self = () => builder;
-  for (const method of ['select', 'eq', 'single']) {
-    builder[method] = () => self();
-  }
-  builder['then'] = (
-    onfulfilled: (v: QueryResult) => unknown,
-    onrejected?: (e: unknown) => unknown,
-  ) => Promise.resolve(resolve()).then(onfulfilled, onrejected);
-  return builder;
-}
-
 describe('ReportsRepository', () => {
-  it('reads the default range from the app_settings singleton', async () => {
-    const client = {
-      from: (table: string) => {
-        expect(table).toBe('app_settings');
-        return createQueryBuilder(() => ({
-          data: { default_report_range_days: 30 },
-          error: null,
-        }));
-      },
-    };
-
-    TestBed.configureTestingModule({
-      providers: [ReportsRepository, { provide: SUPABASE_CLIENT, useValue: client }],
-    });
-
-    const repo = TestBed.inject(ReportsRepository);
-    const result = await repo.getSettings();
-
-    expect(result).toEqual({
-      settings: { defaultRangeDays: 30 },
-      error: null,
-    });
-  });
-
-  it('falls back to a 14-day default when the stored value is not 7/14/30', async () => {
-    const client = {
-      from: () =>
-        createQueryBuilder(() => ({
-          data: { default_report_range_days: 99 },
-          error: null,
-        })),
-    };
-
-    TestBed.configureTestingModule({
-      providers: [ReportsRepository, { provide: SUPABASE_CLIENT, useValue: client }],
-    });
-
-    const repo = TestBed.inject(ReportsRepository);
-    const result = await repo.getSettings();
-
-    expect(result.settings.defaultRangeDays).toBe(14);
-  });
-
   it('loadAll calls every report RPC with the selected range (overdue aging excepted)', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null });
 

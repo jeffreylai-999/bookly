@@ -15,10 +15,9 @@ import {
   UiSkeleton,
   UiTable,
 } from '../ui';
-import { normalizeCurrency } from '../core/app-settings';
+import { CURRENCY_PATTERN, normalizeCurrency } from '../core/app-settings';
 import { SettingsStore } from './settings.store';
 import {
-  CURRENCY_PATTERN,
   REPORT_RANGE_OPTIONS,
   isValidTimeZone,
   toAppSettingsFormValue,

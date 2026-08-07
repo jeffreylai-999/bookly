@@ -39,9 +39,6 @@ export type SettingsMutationError =
 /** Reports range selector options (mirrors the app_settings CHECK). */
 export const REPORT_RANGE_OPTIONS = ['7', '14', '30'] as const;
 
-/** Re-export — AppSettings owns the ISO 4217 guard. */
-export { CURRENCY_PATTERN } from '../core/app-settings';
-
 /**
  * audit_log.entity_id is a uuid; the app_settings singleton has a boolean pk,
  * so its audit rows log under the nil UUID by convention.

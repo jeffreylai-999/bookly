@@ -1,37 +1,11 @@
 import { Service, inject } from '@angular/core';
 
 import { SUPABASE_CLIENT } from '../core/supabase';
-import { isRangeDays, type RangeDays, type ReportsData } from './reports.types';
-
-const DEFAULT_RANGE_DAYS: RangeDays = 14;
-
-export type ReportsSettings = {
-  defaultRangeDays: RangeDays;
-};
+import { type RangeDays, type ReportsData } from './reports.types';
 
 @Service()
 export class ReportsRepository {
   private readonly supabase = inject(SUPABASE_CLIENT);
-
-  /** Range default only — currency lives on `AppSettingsService`. */
-  async getSettings(): Promise<{ settings: ReportsSettings; error: string | null }> {
-    const { data, error } = await this.supabase
-      .from('app_settings')
-      .select('default_report_range_days')
-      .eq('id', true)
-      .single();
-
-    const defaultRangeDays = data?.default_report_range_days;
-    return {
-      settings: {
-        defaultRangeDays:
-          defaultRangeDays !== undefined && isRangeDays(defaultRangeDays)
-            ? defaultRangeDays
-            : DEFAULT_RANGE_DAYS,
-      },
-      error: error?.message ?? null,
-    };
-  }
 
   /**
    * Loads all seven metrics for one range in parallel. Overdue aging ignores

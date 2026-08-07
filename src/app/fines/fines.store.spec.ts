@@ -1,4 +1,3 @@
-import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { AppSettingsService } from '../core/app-settings';
@@ -22,20 +21,15 @@ const fineRow: FineListItem = {
 
 const summaryRow = { outstandingBalance: 12, collectedTotal: 30, waivedTotal: 5 };
 
-function setup(
-  repoOverrides: Record<string, unknown> = {},
-  appSettingsOverrides: Partial<AppSettingsService> = {},
-) {
-  const currency = signal('EUR');
+function setup(repoOverrides: Record<string, unknown> = {}) {
   TestBed.configureTestingModule({
     providers: [
       FinesStore,
       {
         provide: AppSettingsService,
         useValue: {
-          currency: currency.asReadonly(),
+          currency: () => 'EUR',
           load: vi.fn().mockResolvedValue(undefined),
-          ...appSettingsOverrides,
         },
       },
       {
@@ -59,12 +53,10 @@ describe('FinesStore', () => {
   it('loads fines and the summary on init, reading currency from AppSettings', async () => {
     const list = vi.fn().mockResolvedValue({ rows: [{ id: 'f1' }], total: 1, error: null });
     const summary = vi.fn().mockResolvedValue({ row: summaryRow, error: null });
-    const load = vi.fn().mockResolvedValue(undefined);
-    const store = setup({ list, summary }, { load });
+    const store = setup({ list, summary });
 
     await store.init();
 
-    expect(load).toHaveBeenCalled();
     expect(list).toHaveBeenCalledWith({ page: 1, pageSize: 10, status: 'all' });
     expect(summary).toHaveBeenCalled();
     expect(store.currency()).toBe('EUR');

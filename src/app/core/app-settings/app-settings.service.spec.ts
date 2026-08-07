@@ -4,9 +4,8 @@ import { SUPABASE_CLIENT } from '../supabase';
 import { AppSettingsService } from './app-settings.service';
 
 type SettingsRow = {
-  currency: string;
-  timezone: string;
-  fine_block_threshold: number;
+  currency: string | null;
+  default_report_range_days: number | null;
 };
 
 type QueryResult = { data: SettingsRow | null; error: { message: string } | null };
@@ -38,13 +37,9 @@ function setup(resolve: () => QueryResult) {
 }
 
 describe('AppSettingsService', () => {
-  it('loads currency, timezone, and fine block threshold from one app_settings read', async () => {
+  it('loads currency and the report range default from one app_settings read', async () => {
     const { service, from } = setup(() => ({
-      data: {
-        currency: 'EUR',
-        timezone: 'Europe/Paris',
-        fine_block_threshold: 25,
-      },
+      data: { currency: 'EUR', default_report_range_days: 30 },
       error: null,
     }));
 
@@ -52,62 +47,40 @@ describe('AppSettingsService', () => {
 
     expect(from).toHaveBeenCalledTimes(1);
     expect(service.currency()).toBe('EUR');
-    expect(service.timezone()).toBe('Europe/Paris');
-    expect(service.fineBlockThreshold()).toBe(25);
+    expect(service.reportRangeDays()).toBe(30);
   });
 
-  it('falls back to USD when currency is missing', async () => {
+  it.each(['', null, 'us', 'usd'])('falls back to USD for the currency code %o', async (code) => {
     const { service } = setup(() => ({
-      data: {
-        currency: '',
-        timezone: 'America/New_York',
-        fine_block_threshold: 10,
-      },
+      data: { currency: code, default_report_range_days: 7 },
       error: null,
     }));
 
     await service.load();
 
     expect(service.currency()).toBe('USD');
+    expect(service.reportRangeDays()).toBe(7);
   });
 
-  it('falls back to USD when the settings read fails', async () => {
-    const { service } = setup(() => ({
-      data: null,
-      error: { message: 'boom' },
-    }));
+  it('keeps defaults and retries on the next call when the read fails', async () => {
+    let result: QueryResult = { data: null, error: { message: 'boom' } };
+    const { service, from } = setup(() => result);
 
     await service.load();
 
     expect(service.currency()).toBe('USD');
-    expect(service.timezone()).toBe('America/New_York');
-    expect(service.fineBlockThreshold()).toBe(10);
-  });
+    expect(service.reportRangeDays()).toBeNull();
 
-  it('falls back to USD when the stored currency code is malformed', async () => {
-    const { service } = setup(() => ({
-      data: {
-        currency: 'us',
-        timezone: 'America/Chicago',
-        fine_block_threshold: 5,
-      },
-      error: null,
-    }));
-
+    result = { data: { currency: 'GBP', default_report_range_days: 14 }, error: null };
     await service.load();
 
-    expect(service.currency()).toBe('USD');
-    expect(service.timezone()).toBe('America/Chicago');
-    expect(service.fineBlockThreshold()).toBe(5);
+    expect(from).toHaveBeenCalledTimes(2);
+    expect(service.currency()).toBe('GBP');
   });
 
   it('dedupes concurrent loads into a single read', async () => {
     const { service, from } = setup(() => ({
-      data: {
-        currency: 'GBP',
-        timezone: 'Europe/London',
-        fine_block_threshold: 15,
-      },
+      data: { currency: 'GBP', default_report_range_days: 15 },
       error: null,
     }));
 
@@ -115,5 +88,19 @@ describe('AppSettingsService', () => {
 
     expect(from).toHaveBeenCalledTimes(1);
     expect(service.currency()).toBe('GBP');
+  });
+
+  it('set() refreshes the cache so a later load does not refetch', async () => {
+    const { service, from } = setup(() => ({
+      data: { currency: 'EUR', default_report_range_days: 30 },
+      error: null,
+    }));
+
+    service.set({ currency: 'JPY', default_report_range_days: 7 });
+    await service.load();
+
+    expect(from).not.toHaveBeenCalled();
+    expect(service.currency()).toBe('JPY');
+    expect(service.reportRangeDays()).toBe(7);
   });
 });

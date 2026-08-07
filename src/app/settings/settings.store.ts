@@ -1,5 +1,6 @@
 import { Service, inject, signal } from '@angular/core';
 
+import { AppSettingsService } from '../core/app-settings';
 import { AuditService } from '../core/audit';
 import type { MemberTypesClientInsert, MemberTypesClientUpdate } from '../core/supabase';
 import { SettingsRepository, mapWriteError } from './settings.repository';
@@ -16,6 +17,7 @@ import {
 export class SettingsStore {
   private readonly repo = inject(SettingsRepository);
   private readonly audit = inject(AuditService);
+  private readonly appSettingsCache = inject(AppSettingsService);
 
   private readonly memberTypesState = signal<MemberType[]>([]);
   private readonly appSettingsState = signal<AppSettings | null>(null);
@@ -138,6 +140,8 @@ export class SettingsStore {
         detail: { currency: saved.row.currency, timezone: saved.row.timezone },
       });
       this.appSettingsState.set(saved.row);
+      // Keep the shared cache in step so Fines/Reports do not show the old row.
+      this.appSettingsCache.set(saved.row);
       return { error: auditResult.error ? 'audit_failed' : null };
     } finally {
       this.savingState.set(false);
