@@ -1,8 +1,20 @@
 import { TestBed } from '@angular/core/testing';
 
 import { HoldsRepository } from './holds.repository';
+import type { ListResult } from './holds.repository';
 import { HoldsStore } from './holds.store';
 import type { HoldListItem } from './holds.types';
+
+type HoldsList = ListResult<HoldListItem>;
+
+/** `Promise.withResolvers` needs lib ES2024; the project targets ES2022. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve: (value: T) => resolve(value) };
+}
 
 function holdRow(overrides: Partial<HoldListItem>): HoldListItem {
   return {
@@ -142,18 +154,12 @@ describe('HoldsStore', () => {
 
   it('keeps the previous rows visible while a filter load is in flight', async () => {
     const first = holdRow({ id: 'h-first' });
-    const deferred: {
-      resolve: (value: { rows: HoldListItem[]; total: number; error: null }) => void;
-    } = {
-      resolve: () => undefined,
-    };
+    const slow = deferred<HoldsList>();
     const listHolds = vi.fn().mockImplementation(async (status: string) => {
       if (status === '') {
         return { rows: [first], total: 1, error: null };
       }
-      return new Promise<{ rows: HoldListItem[]; total: number; error: null }>((resolve) => {
-        deferred.resolve = resolve;
-      });
+      return slow.promise;
     });
     const store = setup({ listHolds });
     await store.load();
@@ -165,7 +171,7 @@ describe('HoldsStore', () => {
     expect(store.loading()).toBe(true);
     expect(store.rows()).toEqual([first]);
 
-    deferred.resolve({ rows: [], total: 0, error: null });
+    slow.resolve({ rows: [], total: 0, error: null });
     await pending;
 
     expect(store.rows()).toEqual([]);
@@ -173,30 +179,48 @@ describe('HoldsStore', () => {
   });
 
   it('ignores stale load results after a newer load starts', async () => {
-    const deferred: {
-      resolve: (value: { rows: HoldListItem[]; total: number; error: null }) => void;
-    } = {
-      resolve: () => undefined,
-    };
+    const stale = deferred<HoldsList>();
     const readyRow = holdRow({ id: 'h-ready', status: 'ready' });
     const listHolds = vi.fn().mockImplementation(async (status: string) => {
       if (status === 'waiting') {
-        return new Promise<{ rows: HoldListItem[]; total: number; error: null }>((resolve) => {
-          deferred.resolve = resolve;
-        });
+        return stale.promise;
       }
       return { rows: [readyRow], total: 1, error: null };
     });
     const store = setup({ listHolds });
 
-    const slow = store.applyStatus('waiting');
+    const pending = store.applyStatus('waiting');
     await store.applyStatus('ready');
-    deferred.resolve({ rows: [], total: 0, error: null });
-    await slow;
+    stale.resolve({ rows: [], total: 0, error: null });
+    await pending;
 
     expect(store.status()).toBe('ready');
     expect(store.rows()).toEqual([readyRow]);
     expect(store.total()).toBe(1);
+  });
+
+  it('refetches a load issued with unchanged params while one is in flight', async () => {
+    const stale = holdRow({ id: 'h-stale' });
+    const fresh = holdRow({ id: 'h-fresh' });
+    const slow = deferred<HoldsList>();
+    const listHolds = vi
+      .fn()
+      .mockImplementationOnce(async () => slow.promise)
+      .mockImplementation(async () => ({ rows: [fresh], total: 1, error: null }));
+    const store = setup({ listHolds });
+
+    // A read is in flight when the mutation's refresh lands on identical params:
+    // `resource.reload()` no-ops while loading, so the refresh must be a new request.
+    const pending = store.load();
+    await vi.waitFor(() => {
+      expect(listHolds).toHaveBeenCalledTimes(1);
+    });
+    const refreshed = store.load();
+    slow.resolve({ rows: [stale], total: 1, error: null });
+    await Promise.all([pending, refreshed]);
+
+    expect(listHolds).toHaveBeenCalledTimes(2);
+    expect(store.rows()).toEqual([fresh]);
   });
 
   it('clamps an out-of-range page and reloads', async () => {
