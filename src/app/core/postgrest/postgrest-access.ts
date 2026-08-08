@@ -3,6 +3,9 @@ import type { Database } from '../supabase/database.types';
 
 type Functions = Database['public']['Functions'];
 
+export type ListQuery = { page: number; pageSize: number };
+export type ListResult<T> = { rows: T[]; total: number; error: string | null };
+
 /** Name of a database function exposed to PostgREST. */
 export type RpcName = keyof Functions;
 

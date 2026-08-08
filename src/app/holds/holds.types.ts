@@ -1,3 +1,4 @@
+import { mapRpcError } from '../core/postgrest';
 import type { Enums, Tables } from '../core/supabase';
 
 export type HoldStatus = Enums<'hold_status'>;
@@ -38,8 +39,7 @@ export const HOLDS_ERROR_KEYS: Record<HoldsError, string> = {
 };
 
 export function mapHoldsError(message: string | undefined): HoldsError {
-  if (!message) return 'unexpected';
-  const codes: HoldsError[] = [
+  return mapRpcError(message, [
     'not_authenticated',
     'profile_missing',
     'title_not_found',
@@ -48,11 +48,7 @@ export function mapHoldsError(message: string | undefined): HoldsError {
     'no_waiting_holds',
     'hold_not_active',
     'hold_not_found',
-  ];
-  for (const code of codes) {
-    if (message.includes(code)) return code;
-  }
-  return 'unexpected';
+  ]);
 }
 
 export function holdStatusTone(status: HoldStatus): 'success' | 'info' | 'neutral' {
