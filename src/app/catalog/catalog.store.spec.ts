@@ -78,9 +78,7 @@ describe('CatalogStore', () => {
     expect(store.search()).toBe('');
     expect(store.genre()).toBe('');
     expect(store.hasActiveFilters()).toBe(false);
-    expect(queries.at(-1)).toEqual(
-      expect.objectContaining({ search: '', genre: '', page: 1 }),
-    );
+    expect(queries.at(-1)).toEqual(expect.objectContaining({ search: '', genre: '', page: 1 }));
   });
 
   it('setCopyStatus refreshes availability after success', async () => {
@@ -109,7 +107,13 @@ describe('CatalogStore', () => {
             editCopy: async () => ({ ok: true, value: dune.copies[0] }),
             setCopyStatus: async () => ({
               ok: true,
-              value: { id: 'c1', barcode: 'BK-001', status: 'lost', title_id: 't1', created_at: '' },
+              value: {
+                id: 'c1',
+                barcode: 'BK-001',
+                status: 'lost',
+                title_id: 't1',
+                created_at: '',
+              },
             }),
           },
         },
@@ -150,7 +154,42 @@ describe('CatalogStore', () => {
     expect(store.isEmpty()).toBe(false);
   });
 
-  it('ignores stale load results after a newer load starts', async () => {
+  it('retains loaded genres when a later title load fails', async () => {
+    let listCalls = 0;
+    TestBed.configureTestingModule({
+      providers: [
+        CatalogStore,
+        {
+          provide: CatalogRepository,
+          useValue: {
+            listTitles: async () => {
+              listCalls += 1;
+              if (listCalls > 1) {
+                throw new Error('network');
+              }
+              return { rows: [dune], total: 1 };
+            },
+            listGenres: async () => ['Sci-fi', 'Fiction'],
+            addTitle: async () => ({ ok: false, error: 'unexpected' }),
+            editCopy: async () => ({ ok: false, error: 'unexpected' }),
+            setCopyStatus: async () => ({ ok: false, error: 'unexpected' }),
+          },
+        },
+      ],
+    });
+
+    const store = TestBed.inject(CatalogStore);
+    await store.load();
+    await store.load();
+
+    expect(store.rows()).toEqual([]);
+    expect(store.total()).toBe(0);
+    expect(store.genres()).toEqual(['Sci-fi', 'Fiction']);
+    expect(store.error()).toBe('load_failed');
+  });
+
+  it('keeps a newer empty-search result when a stale slow search resolves', async () => {
+    let slowLoaderStarted = false;
     const deferred: {
       resolve: (value: { rows: CatalogTitle[]; total: number }) => void;
     } = {
@@ -164,6 +203,7 @@ describe('CatalogStore', () => {
           useValue: {
             listTitles: async (q: { search: string }) => {
               if (q.search === 'slow') {
+                slowLoaderStarted = true;
                 return new Promise<{ rows: CatalogTitle[]; total: number }>((resolve) => {
                   deferred.resolve = resolve;
                 });
@@ -181,11 +221,59 @@ describe('CatalogStore', () => {
 
     const store = TestBed.inject(CatalogStore);
     const slow = store.applySearch('slow');
+    // Prove the slow request's loader actually began before it gets
+    // superseded — otherwise "the stale request resolves without clobbering
+    // the newer result" would be true for the trivial (and uninteresting)
+    // reason that the slow request never ran at all.
+    await vi.waitFor(() => expect(slowLoaderStarted).toBe(true));
+
     await store.applySearch('');
     deferred.resolve({ rows: [], total: 0 });
     await slow;
 
     expect(store.rows()).toEqual([dune]);
     expect(store.total()).toBe(1);
+  });
+
+  it('keeps showing the previous result while a new page is still loading (sticky value)', async () => {
+    let resolveSecond: (value: { rows: CatalogTitle[]; total: number }) => void = () => undefined;
+    let calls = 0;
+    TestBed.configureTestingModule({
+      providers: [
+        CatalogStore,
+        {
+          provide: CatalogRepository,
+          useValue: {
+            listTitles: async () => {
+              calls += 1;
+              if (calls === 1) {
+                return { rows: [dune], total: 1 };
+              }
+              return new Promise<{ rows: CatalogTitle[]; total: number }>((resolve) => {
+                resolveSecond = resolve;
+              });
+            },
+            listGenres: async () => ['Sci-fi'],
+            addTitle: async () => ({ ok: false, error: 'unexpected' }),
+            editCopy: async () => ({ ok: false, error: 'unexpected' }),
+            setCopyStatus: async () => ({ ok: false, error: 'unexpected' }),
+          },
+        },
+      ],
+    });
+
+    const store = TestBed.inject(CatalogStore);
+    await store.load();
+    expect(store.rows()).toEqual([dune]);
+
+    const reload = store.applyPage(2);
+    await vi.waitFor(() => expect(calls).toBe(2));
+    expect(store.loading()).toBe(true);
+    expect(store.rows()).toEqual([dune]);
+
+    resolveSecond({ rows: [], total: 0 });
+    await reload;
+
+    expect(store.rows()).toEqual([]);
   });
 });

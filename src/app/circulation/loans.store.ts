@@ -1,46 +1,101 @@
-import { Service, computed, inject, signal } from '@angular/core';
+import { Service, computed, inject, linkedSignal, resource, signal } from '@angular/core';
 
 import { AppSettingsService } from '../core/app-settings';
+import { ResourceSettlement } from '../core/resource-settlement';
+import { clampPage, isListEmpty } from '../ui';
 import { CirculationRepository } from './circulation.repository';
-import type {
-  LoanListItem,
-  LoansTab,
-  OverdueLoan,
-  RenewResult,
-} from './circulation.types';
+import type { LoanListItem, LoansTab, OverdueLoan, RenewResult } from './circulation.types';
 
 const PAGE_SIZE = 10;
+const EMPTY_LIST: LoansListValue = {
+  tab: 'active',
+  loans: [],
+  overdue: [],
+  total: 0,
+};
+
+type LoansListValue =
+  | { tab: 'overdue'; loans: []; overdue: OverdueLoan[]; total: number }
+  | {
+      tab: Exclude<LoansTab, 'overdue'>;
+      loans: LoanListItem[];
+      overdue: [];
+      total: number;
+    };
+type LoansListParams = {
+  tab: LoansTab;
+  page: number;
+  pageSize: number;
+  nonce: number;
+};
 
 @Service()
 export class LoansStore {
   private readonly repo = inject(CirculationRepository);
   private readonly appSettings = inject(AppSettingsService);
-  /** Bumped on each load so superseded tab/page responses are ignored. */
-  private loadGeneration = 0;
 
   private readonly tabState = signal<LoansTab>('active');
-  private readonly loansState = signal<LoanListItem[]>([]);
-  private readonly overdueState = signal<OverdueLoan[]>([]);
-  private readonly totalState = signal(0);
   private readonly pageState = signal(1);
-  private readonly loadingState = signal(false);
-  private readonly errorState = signal<string | null>(null);
   /** Loan id with a renew in flight; null when idle. */
   private readonly renewingIdState = signal<string | null>(null);
+  private readonly query = signal<LoansListParams | undefined>(undefined);
+
+  private readonly listResource = resource({
+    params: () => this.query(),
+    loader: async ({ params }) => {
+      const query = { page: params.page, pageSize: params.pageSize };
+      switch (params.tab) {
+        case 'overdue': {
+          const result = await this.repo.listOverdue(query);
+          if (result.error) {
+            throw new Error('load_failed');
+          }
+          return {
+            tab: params.tab,
+            loans: [],
+            overdue: result.rows,
+            total: result.total,
+          } satisfies LoansListValue;
+        }
+        case 'active':
+        case 'returned': {
+          const result = await this.repo.listLoans(params.tab, query);
+          if (result.error) {
+            throw new Error('load_failed');
+          }
+          return {
+            tab: params.tab,
+            loans: result.rows,
+            overdue: [],
+            total: result.total,
+          } satisfies LoansListValue;
+        }
+        default: {
+          const exhaustive: never = params.tab;
+          throw new Error(`unsupported_tab:${exhaustive}`);
+        }
+      }
+    },
+  });
+
+  private readonly list = linkedSignal<LoansListValue | undefined, LoansListValue>({
+    source: () => (this.listResource.error() ? EMPTY_LIST : this.listResource.value()),
+    computation: (next, previous) => next ?? previous?.value ?? EMPTY_LIST,
+  });
+
+  private readonly settlement = new ResourceSettlement(this.listResource.isLoading);
 
   readonly tab = this.tabState.asReadonly();
-  readonly loans = this.loansState.asReadonly();
-  readonly overdue = this.overdueState.asReadonly();
-  readonly total = this.totalState.asReadonly();
+  readonly loans = computed(() => this.list().loans);
+  readonly overdue = computed(() => this.list().overdue);
+  readonly total = computed(() => this.list().total);
   readonly page = this.pageState.asReadonly();
   readonly pageSize = PAGE_SIZE;
-  readonly loading = this.loadingState.asReadonly();
-  readonly error = this.errorState.asReadonly();
+  readonly loading = this.listResource.isLoading;
+  readonly error = computed(() => (this.listResource.error() ? 'load_failed' : null));
   readonly currency = this.appSettings.currency;
   readonly renewingId = this.renewingIdState.asReadonly();
-  readonly empty = computed(
-    () => !this.loadingState() && !this.errorState() && this.totalState() === 0,
-  );
+  readonly empty = computed(() => isListEmpty(this.loading(), this.error(), this.total()));
 
   async init(): Promise<void> {
     await this.appSettings.load();
@@ -48,41 +103,7 @@ export class LoansStore {
   }
 
   async load(): Promise<void> {
-    const generation = ++this.loadGeneration;
-    this.loadingState.set(true);
-    this.errorState.set(null);
-    try {
-      const tab = this.tabState();
-      const query = { page: this.pageState(), pageSize: PAGE_SIZE };
-
-      if (tab === 'overdue') {
-        const result = await this.repo.listOverdue(query);
-        if (generation !== this.loadGeneration) return;
-        if (result.error) {
-          this.errorState.set(result.error);
-          this.overdueState.set([]);
-          this.totalState.set(0);
-          return;
-        }
-        this.overdueState.set(result.rows);
-        this.totalState.set(result.total);
-      } else {
-        const result = await this.repo.listLoans(tab, query);
-        if (generation !== this.loadGeneration) return;
-        if (result.error) {
-          this.errorState.set(result.error);
-          this.loansState.set([]);
-          this.totalState.set(0);
-          return;
-        }
-        this.loansState.set(result.rows);
-        this.totalState.set(result.total);
-      }
-    } finally {
-      if (generation === this.loadGeneration) {
-        this.loadingState.set(false);
-      }
-    }
+    await this.runQuery();
   }
 
   async setTab(tab: LoansTab): Promise<void> {
@@ -109,6 +130,27 @@ export class LoansStore {
       return result;
     } finally {
       this.renewingIdState.set(null);
+    }
+  }
+
+  private async runQuery(): Promise<void> {
+    const request = this.settlement.begin();
+    this.query.set({
+      tab: this.tabState(),
+      page: this.pageState(),
+      pageSize: PAGE_SIZE,
+      nonce: request.nonce,
+    });
+    await request.wait();
+    if (!request.isCurrent()) return;
+
+    if (this.error() != null) {
+      return;
+    }
+    const page = clampPage(this.pageState(), this.total(), PAGE_SIZE);
+    if (page !== this.pageState()) {
+      this.pageState.set(page);
+      await this.runQuery();
     }
   }
 }

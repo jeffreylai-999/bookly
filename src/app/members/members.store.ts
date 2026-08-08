@@ -1,50 +1,82 @@
-import { Service, computed, inject, signal } from '@angular/core';
+import { Service, computed, inject, linkedSignal, resource, signal } from '@angular/core';
 
 import { AuditService } from '../core/audit';
+import { ResourceSettlement } from '../core/resource-settlement';
 import type { MembersClientInsert, MembersClientUpdate } from '../core/supabase';
+import { clampPage, isListEmpty } from '../ui';
 import { MembersRepository } from './members.repository';
-import type {
-  MemberFormValue,
-  MemberListItem,
-  MemberStatus,
-  MemberType,
-} from './members.types';
+import type { MemberFormValue, MemberListItem, MemberStatus, MemberType } from './members.types';
 
 const PAGE_SIZE = 10;
+const EMPTY_LIST: MembersListValue = { rows: [], total: 0 };
+
+type MembersListValue = { rows: MemberListItem[]; total: number };
+type MembersListParams = {
+  nameSearch: string;
+  status: MemberStatus | 'all';
+  page: number;
+  pageSize: number;
+  nonce: number;
+};
 
 @Service()
 export class MembersStore {
   private readonly repo = inject(MembersRepository);
   private readonly audit = inject(AuditService);
-  /** Bumped on each load so superseded filter/search responses are ignored. */
-  private loadGeneration = 0;
 
-  private readonly rowsState = signal<MemberListItem[]>([]);
-  private readonly totalState = signal(0);
   private readonly pageState = signal(1);
   private readonly nameSearchState = signal('');
   private readonly statusFilterState = signal<MemberStatus | 'all'>('all');
-  private readonly loadingState = signal(false);
   private readonly savingState = signal(false);
-  private readonly errorState = signal<string | null>(null);
   private readonly typesErrorState = signal<string | null>(null);
   private readonly memberTypesState = signal<MemberType[]>([]);
+  private readonly query = signal<MembersListParams | undefined>(undefined);
+  /**
+   * A mutation clears any pre-existing list error up front, since it is
+   * unrelated to the mutation's own outcome and a failed mutation returns
+   * without reloading the list. Reset on every fresh `runQuery()` so a
+   * genuinely new result is never masked.
+   */
+  private readonly errorClearedState = signal(false);
 
-  readonly rows = this.rowsState.asReadonly();
-  readonly total = this.totalState.asReadonly();
+  private readonly listResource = resource({
+    params: () => this.query(),
+    loader: async ({ params }) => {
+      const result = await this.repo.list({
+        page: params.page,
+        pageSize: params.pageSize,
+        nameSearch: params.nameSearch,
+        status: params.status,
+      });
+      if (result.error) {
+        throw new Error('load_failed');
+      }
+      return { rows: result.rows, total: result.total };
+    },
+  });
+
+  private readonly list = linkedSignal<MembersListValue | undefined, MembersListValue>({
+    source: () => (this.listResource.error() ? EMPTY_LIST : this.listResource.value()),
+    computation: (next, previous) => next ?? previous?.value ?? EMPTY_LIST,
+  });
+
+  private readonly settlement = new ResourceSettlement(this.listResource.isLoading);
+
+  readonly rows = computed(() => this.list().rows);
+  readonly total = computed(() => this.list().total);
   readonly page = this.pageState.asReadonly();
   readonly pageSize = PAGE_SIZE;
   readonly nameSearch = this.nameSearchState.asReadonly();
   readonly statusFilter = this.statusFilterState.asReadonly();
-  readonly loading = this.loadingState.asReadonly();
+  readonly loading = this.listResource.isLoading;
   readonly saving = this.savingState.asReadonly();
   /** List-load failures only — never mixed with member-types errors. */
-  readonly error = this.errorState.asReadonly();
+  readonly error = computed(() =>
+    this.errorClearedState() ? null : this.listResource.error() ? 'load_failed' : null,
+  );
   readonly typesError = this.typesErrorState.asReadonly();
   readonly memberTypes = this.memberTypesState.asReadonly();
-  readonly empty = computed(
-    () => !this.loadingState() && !this.errorState() && this.totalState() === 0,
-  );
+  readonly empty = computed(() => isListEmpty(this.loading(), this.error(), this.total()));
   readonly hasActiveFilters = computed(
     () => this.nameSearchState().trim().length > 0 || this.statusFilterState() !== 'all',
   );
@@ -54,32 +86,7 @@ export class MembersStore {
   }
 
   async load(): Promise<void> {
-    const generation = ++this.loadGeneration;
-    this.loadingState.set(true);
-    this.errorState.set(null);
-    try {
-      const result = await this.repo.list({
-        page: this.pageState(),
-        pageSize: PAGE_SIZE,
-        nameSearch: this.nameSearchState(),
-        status: this.statusFilterState(),
-      });
-      if (generation !== this.loadGeneration) {
-        return;
-      }
-      if (result.error) {
-        this.errorState.set(result.error);
-        this.rowsState.set([]);
-        this.totalState.set(0);
-        return;
-      }
-      this.rowsState.set(result.rows);
-      this.totalState.set(result.total);
-    } finally {
-      if (generation === this.loadGeneration) {
-        this.loadingState.set(false);
-      }
-    }
+    await this.runQuery();
   }
 
   async loadMemberTypes(): Promise<void> {
@@ -125,19 +132,16 @@ export class MembersStore {
     return this.saveMember(id, form);
   }
 
-  async setMemberStatus(
-    memberId: string,
-    status: MemberStatus,
-  ): Promise<{ error: string | null }> {
+  async setMemberStatus(memberId: string, status: MemberStatus): Promise<{ error: string | null }> {
     this.savingState.set(true);
-    this.errorState.set(null);
+    this.errorClearedState.set(true);
     try {
       const result = await this.repo.setStatus(memberId, status);
       if (result.error) {
         return { error: result.error };
       }
       await this.load();
-      return { error: this.errorState() ? 'load_failed' : null };
+      return { error: this.error() ? 'load_failed' : null };
     } finally {
       this.savingState.set(false);
     }
@@ -148,7 +152,7 @@ export class MembersStore {
     form: MemberFormValue,
   ): Promise<{ error: string | null }> {
     this.savingState.set(true);
-    this.errorState.set(null);
+    this.errorClearedState.set(true);
     try {
       const fields = {
         name: form.name.trim(),
@@ -170,12 +174,35 @@ export class MembersStore {
         detail: { name: saved.row.name, card_barcode: saved.row.card_barcode },
       });
       await this.load();
-      if (this.errorState()) {
+      if (this.error()) {
         return { error: 'load_failed' };
       }
       return { error: audit.error ? 'audit_failed' : null };
     } finally {
       this.savingState.set(false);
+    }
+  }
+
+  private async runQuery(): Promise<void> {
+    this.errorClearedState.set(false);
+    const request = this.settlement.begin();
+    this.query.set({
+      nameSearch: this.nameSearchState(),
+      status: this.statusFilterState(),
+      page: this.pageState(),
+      pageSize: PAGE_SIZE,
+      nonce: request.nonce,
+    });
+    await request.wait();
+    if (!request.isCurrent()) return;
+
+    if (this.error() != null) {
+      return;
+    }
+    const page = clampPage(this.pageState(), this.total(), PAGE_SIZE);
+    if (page !== this.pageState()) {
+      this.pageState.set(page);
+      await this.runQuery();
     }
   }
 }

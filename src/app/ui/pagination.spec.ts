@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { LUCIDE_ICONS, LucideIconProvider, ChevronLeft, ChevronRight } from 'lucide-angular';
-import { UiPagination, pageCount, pageRange } from './pagination';
+import { clampPage, isListEmpty, UiPagination, pageCount, pageRange } from './pagination';
 
 @Component({
   imports: [UiPagination],
@@ -11,6 +11,25 @@ class Host {
   page = signal(1);
   total = signal(42);
 }
+
+describe('isListEmpty', () => {
+  it('only reports a successful, valid zero-total list as empty', () => {
+    expect(isListEmpty(false, null, 0)).toBe(true);
+    expect(isListEmpty(true, null, 0)).toBe(false);
+    expect(isListEmpty(false, 'load_failed', 0)).toBe(false);
+    expect(isListEmpty(false, null, 0, false)).toBe(false);
+  });
+});
+
+describe('clampPage', () => {
+  it('moves a populated out-of-range page to the last page', () => {
+    expect(clampPage(3, 11, 10)).toBe(2);
+  });
+
+  it('keeps the selected page when the result has no rows', () => {
+    expect(clampPage(3, 0, 10)).toBe(3);
+  });
+});
 
 describe('pagination math', () => {
   it('computes page count', () => {

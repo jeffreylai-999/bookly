@@ -5,6 +5,19 @@ export function pageCount(total: number, pageSize: number): number {
   return Math.max(1, Math.ceil(total / Math.max(1, pageSize)));
 }
 
+export function isListEmpty(
+  loading: boolean,
+  error: string | null,
+  total: number,
+  isValid = true,
+): boolean {
+  return !loading && error === null && isValid && total === 0;
+}
+
+export function clampPage(page: number, total: number, pageSize: number): number {
+  return total > 0 ? Math.min(page, pageCount(total, pageSize)) : page;
+}
+
 export function pageRange(
   page: number,
   pageSize: number,

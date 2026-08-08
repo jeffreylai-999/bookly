@@ -1,6 +1,8 @@
-import { Service, computed, inject, signal } from '@angular/core';
+import { Service, computed, inject, linkedSignal, resource, signal } from '@angular/core';
 
 import { AppSettingsService } from '../core/app-settings';
+import { ResourceSettlement } from '../core/resource-settlement';
+import { clampPage, isListEmpty } from '../ui';
 import { FinesRepository } from './fines.repository';
 import type {
   FineListItem,
@@ -14,20 +16,23 @@ import type {
 } from './fines.types';
 
 const PAGE_SIZE = 10;
+const EMPTY_LIST: FinesListValue = { rows: [], total: 0 };
+
+type FinesListValue = { rows: FineListItem[]; total: number };
+type FinesListParams = {
+  status: FineStatusFilter;
+  page: number;
+  pageSize: number;
+  nonce: number;
+};
 
 @Service()
 export class FinesStore {
   private readonly repo = inject(FinesRepository);
   private readonly appSettings = inject(AppSettingsService);
-  /** Bumped on each load so superseded filter/page responses are ignored. */
-  private loadGeneration = 0;
 
-  private readonly rowsState = signal<FineListItem[]>([]);
-  private readonly totalState = signal(0);
   private readonly pageState = signal(1);
   private readonly statusFilterState = signal<FineStatusFilter>('all');
-  private readonly loadingState = signal(false);
-  private readonly errorState = signal<string | null>(null);
   private readonly summaryState = signal<FineSummary | null>(null);
   private readonly summaryErrorState = signal<string | null>(null);
   private readonly selectedFineState = signal<FineListItem | null>(null);
@@ -36,14 +41,37 @@ export class FinesStore {
   private readonly paymentsErrorState = signal<string | null>(null);
   private readonly busyState = signal(false);
   private readonly receiptState = signal<FineReceipt | null>(null);
+  private readonly query = signal<FinesListParams | undefined>(undefined);
 
-  readonly rows = this.rowsState.asReadonly();
-  readonly total = this.totalState.asReadonly();
+  private readonly listResource = resource({
+    params: () => this.query(),
+    loader: async ({ params }) => {
+      const result = await this.repo.list({
+        page: params.page,
+        pageSize: params.pageSize,
+        status: params.status,
+      });
+      if (result.error) {
+        throw new Error('load_failed');
+      }
+      return { rows: result.rows, total: result.total };
+    },
+  });
+
+  private readonly list = linkedSignal<FinesListValue | undefined, FinesListValue>({
+    source: () => (this.listResource.error() ? EMPTY_LIST : this.listResource.value()),
+    computation: (next, previous) => next ?? previous?.value ?? EMPTY_LIST,
+  });
+
+  private readonly settlement = new ResourceSettlement(this.listResource.isLoading);
+
+  readonly rows = computed(() => this.list().rows);
+  readonly total = computed(() => this.list().total);
   readonly page = this.pageState.asReadonly();
   readonly pageSize = PAGE_SIZE;
   readonly statusFilter = this.statusFilterState.asReadonly();
-  readonly loading = this.loadingState.asReadonly();
-  readonly error = this.errorState.asReadonly();
+  readonly loading = this.listResource.isLoading;
+  readonly error = computed(() => (this.listResource.error() ? 'load_failed' : null));
   readonly currency = this.appSettings.currency;
   readonly summary = this.summaryState.asReadonly();
   readonly summaryError = this.summaryErrorState.asReadonly();
@@ -53,9 +81,7 @@ export class FinesStore {
   readonly paymentsError = this.paymentsErrorState.asReadonly();
   readonly busy = this.busyState.asReadonly();
   readonly receipt = this.receiptState.asReadonly();
-  readonly empty = computed(
-    () => !this.loadingState() && !this.errorState() && this.totalState() === 0,
-  );
+  readonly empty = computed(() => isListEmpty(this.loading(), this.error(), this.total()));
 
   async init(): Promise<void> {
     await this.appSettings.load();
@@ -64,29 +90,7 @@ export class FinesStore {
   }
 
   async load(): Promise<void> {
-    const generation = ++this.loadGeneration;
-    this.loadingState.set(true);
-    this.errorState.set(null);
-    try {
-      const result = await this.repo.list({
-        page: this.pageState(),
-        pageSize: PAGE_SIZE,
-        status: this.statusFilterState(),
-      });
-      if (generation !== this.loadGeneration) return;
-      if (result.error) {
-        this.errorState.set(result.error);
-        this.rowsState.set([]);
-        this.totalState.set(0);
-        return;
-      }
-      this.rowsState.set(result.rows);
-      this.totalState.set(result.total);
-    } finally {
-      if (generation === this.loadGeneration) {
-        this.loadingState.set(false);
-      }
-    }
+    await this.runQuery();
   }
 
   async loadSummary(): Promise<void> {
@@ -206,5 +210,26 @@ export class FinesStore {
       return;
     }
     this.paymentsState.set(rows);
+  }
+
+  private async runQuery(): Promise<void> {
+    const request = this.settlement.begin();
+    this.query.set({
+      status: this.statusFilterState(),
+      page: this.pageState(),
+      pageSize: PAGE_SIZE,
+      nonce: request.nonce,
+    });
+    await request.wait();
+    if (!request.isCurrent()) return;
+
+    if (this.error() != null) {
+      return;
+    }
+    const page = clampPage(this.pageState(), this.total(), PAGE_SIZE);
+    if (page !== this.pageState()) {
+      this.pageState.set(page);
+      await this.runQuery();
+    }
   }
 }

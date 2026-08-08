@@ -1,19 +1,29 @@
-import { Service, computed, inject, signal } from '@angular/core';
+import { Service, computed, inject, linkedSignal, resource, signal } from '@angular/core';
 
-import { pageCount } from '../ui';
+import { ResourceSettlement } from '../core/resource-settlement';
+import { clampPage, isListEmpty } from '../ui';
 import { AuditRepository } from './audit.repository';
 import type { AuditActorRef, AuditListItem } from './audit.types';
 
 const PAGE_SIZE = 10;
+const EMPTY_LIST: AuditListValue = { rows: [], total: 0 };
+
+type AuditListValue = { rows: AuditListItem[]; total: number };
+type AuditListParams = {
+  actorId: string | 'all';
+  action: string | 'all';
+  entityType: string | 'all';
+  fromDate: string;
+  toDate: string;
+  page: number;
+  pageSize: number;
+  nonce: number;
+};
 
 @Service()
 export class AuditStore {
   private readonly repo = inject(AuditRepository);
-  /** Bumped on each load so superseded filter responses are ignored. */
-  private loadGeneration = 0;
 
-  private readonly rowsState = signal<AuditListItem[]>([]);
-  private readonly totalState = signal(0);
   private readonly pageState = signal(1);
   private readonly actorIdState = signal<string | 'all'>('all');
   private readonly actionState = signal<string | 'all'>('all');
@@ -21,12 +31,37 @@ export class AuditStore {
   private readonly fromDateState = signal('');
   private readonly toDateState = signal('');
   private readonly actorsState = signal<AuditActorRef[]>([]);
-  private readonly loadingState = signal(false);
-  private readonly errorState = signal<string | null>(null);
   private readonly actorsErrorState = signal<string | null>(null);
+  private readonly query = signal<AuditListParams | undefined>(undefined);
 
-  readonly rows = this.rowsState.asReadonly();
-  readonly total = this.totalState.asReadonly();
+  private readonly listResource = resource({
+    params: () => this.query(),
+    loader: async ({ params }) => {
+      const result = await this.repo.list({
+        page: params.page,
+        pageSize: params.pageSize,
+        actorId: params.actorId,
+        action: params.action,
+        entityType: params.entityType,
+        fromDate: params.fromDate,
+        toDate: params.toDate,
+      });
+      if (result.error) {
+        throw new Error('load_failed');
+      }
+      return { rows: result.rows, total: result.total };
+    },
+  });
+
+  private readonly list = linkedSignal<AuditListValue | undefined, AuditListValue>({
+    source: () => (this.listResource.error() ? EMPTY_LIST : this.listResource.value()),
+    computation: (next, previous) => next ?? previous?.value ?? EMPTY_LIST,
+  });
+
+  private readonly settlement = new ResourceSettlement(this.listResource.isLoading);
+
+  readonly rows = computed(() => this.list().rows);
+  readonly total = computed(() => this.list().total);
   readonly page = this.pageState.asReadonly();
   readonly pageSize = PAGE_SIZE;
   readonly actorId = this.actorIdState.asReadonly();
@@ -35,9 +70,9 @@ export class AuditStore {
   readonly fromDate = this.fromDateState.asReadonly();
   readonly toDate = this.toDateState.asReadonly();
   readonly actors = this.actorsState.asReadonly();
-  readonly loading = this.loadingState.asReadonly();
+  readonly loading = this.listResource.isLoading;
   /** List-load failures only — never mixed with actor-roster errors. */
-  readonly error = this.errorState.asReadonly();
+  readonly error = computed(() => (this.listResource.error() ? 'load_failed' : null));
   readonly actorsError = this.actorsErrorState.asReadonly();
   readonly hasActiveFilters = computed(
     () =>
@@ -53,12 +88,8 @@ export class AuditStore {
     const to = this.toDateState().trim();
     return from.length > 0 && to.length > 0 && from > to;
   });
-  readonly empty = computed(
-    () =>
-      !this.loadingState() &&
-      !this.errorState() &&
-      !this.dateRangeInvalid() &&
-      this.totalState() === 0,
+  readonly empty = computed(() =>
+    isListEmpty(this.loading(), this.error(), this.total(), !this.dateRangeInvalid()),
   );
 
   async init(): Promise<void> {
@@ -66,50 +97,7 @@ export class AuditStore {
   }
 
   async load(): Promise<void> {
-    const generation = ++this.loadGeneration;
-    this.loadingState.set(true);
-    this.errorState.set(null);
-    try {
-      if (this.dateRangeInvalid()) {
-        this.rowsState.set([]);
-        this.totalState.set(0);
-        return;
-      }
-
-      const page = this.pageState();
-      const result = await this.repo.list({
-        page,
-        pageSize: PAGE_SIZE,
-        actorId: this.actorIdState(),
-        action: this.actionState(),
-        entityType: this.entityTypeState(),
-        fromDate: this.fromDateState(),
-        toDate: this.toDateState(),
-      });
-      if (generation !== this.loadGeneration) {
-        return;
-      }
-      if (result.error) {
-        this.errorState.set(result.error);
-        this.rowsState.set([]);
-        this.totalState.set(0);
-        return;
-      }
-
-      const maxPage = pageCount(result.total, PAGE_SIZE);
-      if (result.total > 0 && page > maxPage) {
-        this.pageState.set(maxPage);
-        await this.load();
-        return;
-      }
-
-      this.rowsState.set(result.rows);
-      this.totalState.set(result.total);
-    } finally {
-      if (generation === this.loadGeneration) {
-        this.loadingState.set(false);
-      }
-    }
+    await this.runQuery();
   }
 
   async loadActors(): Promise<void> {
@@ -166,5 +154,41 @@ export class AuditStore {
     this.toDateState.set('');
     this.pageState.set(1);
     return this.load();
+  }
+
+  private async runQuery(): Promise<void> {
+    if (this.dateRangeInvalid()) {
+      // Explicitly supersedes any in-flight request rather than leaving its
+      // token current — this issues no replacement request of its own, so
+      // relying on the resource's own loading→idle transition to unblock a
+      // stale caller would leave `isCurrent()` true for it in the meantime.
+      this.settlement.invalidate();
+      this.query.set(undefined);
+      this.list.set(EMPTY_LIST);
+      return;
+    }
+
+    const request = this.settlement.begin();
+    this.query.set({
+      actorId: this.actorIdState(),
+      action: this.actionState(),
+      entityType: this.entityTypeState(),
+      fromDate: this.fromDateState(),
+      toDate: this.toDateState(),
+      page: this.pageState(),
+      pageSize: PAGE_SIZE,
+      nonce: request.nonce,
+    });
+    await request.wait();
+    if (!request.isCurrent()) return;
+
+    if (this.error() != null) {
+      return;
+    }
+    const page = clampPage(this.pageState(), this.total(), PAGE_SIZE);
+    if (page !== this.pageState()) {
+      this.pageState.set(page);
+      await this.runQuery();
+    }
   }
 }

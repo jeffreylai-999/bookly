@@ -87,13 +87,30 @@ describe('LoansStore', () => {
     expect(listLoans).toHaveBeenCalledWith('returned', { page: 3, pageSize: 10 });
   });
 
+  it('clamps an out-of-range active page and reloads the last valid page', async () => {
+    const listLoans = vi.fn((_tab, query: { page: number }) =>
+      Promise.resolve(
+        query.page === 2
+          ? { rows: [], total: 1, error: null }
+          : { rows: [loanRow], total: 1, error: null },
+      ),
+    );
+    const store = setup({ listLoans });
+    await store.init();
+
+    await store.setPage(2);
+
+    expect(listLoans).toHaveBeenLastCalledWith('active', { page: 1, pageSize: 10 });
+    expect(store.loans()).toEqual([loanRow]);
+  });
+
   it('surfaces load errors and empties the list', async () => {
     const listLoans = vi.fn().mockResolvedValue({ rows: [], total: 0, error: 'boom' });
     const store = setup({ listLoans });
 
     await store.init();
 
-    expect(store.error()).toBe('boom');
+    expect(store.error()).toBe('load_failed');
     expect(store.loans()).toEqual([]);
     expect(store.empty()).toBe(false);
   });
