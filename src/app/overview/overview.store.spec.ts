@@ -87,8 +87,114 @@ function trendPoint(overrides: Partial<CheckoutTrendPoint> = {}): CheckoutTrendP
   return { day: '2026-08-03', checkouts: 3, ...overrides };
 }
 
+type RepoKey = 'circulation' | 'holds' | 'fines' | 'audit';
+
+/**
+ * One row per section the briefing reads, so the wiring — which repository
+ * call backs it, with which arguments, and which signals it feeds — is
+ * asserted for every section instead of a chosen few.
+ */
+const sections: {
+  label: string;
+  repo: RepoKey;
+  method: string;
+  args: unknown[];
+  ok: unknown;
+  failed: unknown;
+  loaded: unknown;
+  blank: unknown;
+  read: (store: OverviewStore) => unknown;
+  readError: (store: OverviewStore) => string | null;
+}[] = [
+  {
+    label: 'holds ready',
+    repo: 'holds',
+    method: 'listHolds',
+    args: ['ready', { page: 1, pageSize: 5 }],
+    ok: { rows: [holdRow()], total: 1, error: null },
+    failed: { rows: [], total: 0, error: 'boom' },
+    loaded: [holdRow()],
+    blank: [],
+    read: (store) => store.holdsReady(),
+    readError: (store) => store.holdsReadyError(),
+  },
+  {
+    label: 'due today',
+    repo: 'circulation',
+    method: 'listDueToday',
+    args: [{ page: 1, pageSize: 5 }],
+    ok: { rows: [dueTodayRow()], total: 1, error: null },
+    failed: { rows: [], total: 0, error: 'boom' },
+    loaded: [dueTodayRow()],
+    blank: [],
+    read: (store) => store.dueToday(),
+    readError: (store) => store.dueTodayError(),
+  },
+  {
+    label: 'top overdue',
+    repo: 'circulation',
+    method: 'listOverdue',
+    args: [{ page: 1, pageSize: 5 }],
+    ok: { rows: [overdueRow()], total: 1, error: null },
+    failed: { rows: [], total: 0, error: 'boom' },
+    loaded: [overdueRow()],
+    blank: [],
+    read: (store) => store.topOverdue(),
+    readError: (store) => store.topOverdueError(),
+  },
+  {
+    label: 'holds waiting count',
+    repo: 'holds',
+    method: 'countByStatus',
+    args: ['waiting'],
+    ok: { count: 2, error: null },
+    failed: { count: 0, error: 'boom' },
+    loaded: 2,
+    blank: 0,
+    read: (store) => store.holdsWaitingCount(),
+    readError: (store) => store.holdsWaitingCountError(),
+  },
+  {
+    label: 'fines summary',
+    repo: 'fines',
+    method: 'summary',
+    args: [],
+    ok: { row: { outstandingBalance: 42.5, collectedTotal: 10, waivedTotal: 0 }, error: null },
+    failed: { row: null, error: 'boom' },
+    loaded: 42.5,
+    blank: 0,
+    read: (store) => store.finesOutstanding(),
+    readError: (store) => store.finesSummaryError(),
+  },
+  {
+    label: 'recent activity',
+    repo: 'audit',
+    method: 'listRecent',
+    args: [8],
+    ok: { rows: [auditRow()], error: null },
+    failed: { rows: [], error: 'boom' },
+    loaded: [auditRow()],
+    blank: [],
+    read: (store) => store.recentActivity(),
+    readError: (store) => store.recentActivityError(),
+  },
+  {
+    label: 'checkout trend',
+    repo: 'circulation',
+    method: 'getCheckoutTrend',
+    args: [],
+    ok: { rows: [trendPoint()], error: null },
+    failed: { rows: [], error: 'boom' },
+    loaded: [trendPoint()],
+    blank: [],
+    read: (store) => store.trend(),
+    readError: (store) => store.trendError(),
+  },
+];
+
 function setup(
   overrides: {
+    appSettings?: Record<string, unknown>;
     circulation?: Record<string, unknown>;
     holds?: Record<string, unknown>;
     fines?: Record<string, unknown>;
@@ -103,6 +209,7 @@ function setup(
         useValue: {
           currency: () => 'USD',
           load: vi.fn().mockResolvedValue(undefined),
+          ...overrides.appSettings,
         },
       },
       {
@@ -178,36 +285,37 @@ describe('OverviewStore', () => {
     expect(store.overdueCount()).toBe(9);
   });
 
-  it('keeps every section independent — one failure does not blank the rest', async () => {
-    const store = setup({
-      holds: {
-        listHolds: vi.fn().mockResolvedValue({ rows: [], total: 0, error: 'boom' }),
-        countByStatus: vi.fn().mockResolvedValue({ count: 2, error: null }),
-      },
-    });
+  it.each(sections)(
+    '$label reads through its own repository call and exposes its result',
+    async ({ repo, method, args, ok, loaded, read, readError }) => {
+      const call = vi.fn().mockResolvedValue(ok);
+      const store = setup({ [repo]: { [method]: call } });
 
-    await store.init();
+      await store.init();
 
-    expect(store.holdsReadyError()).toBe('boom');
-    expect(store.holdsReady()).toEqual([]);
-    // Unrelated sections still loaded successfully.
-    expect(store.dueToday()).toEqual([dueTodayRow()]);
-    expect(store.holdsWaitingCount()).toBe(2);
-    expect(store.finesOutstanding()).toBe(42.5);
-  });
+      expect(call).toHaveBeenCalledWith(...args);
+      expect(read(store)).toEqual(loaded);
+      expect(readError(store)).toBeNull();
+    },
+  );
 
-  it('surfaces a due-today load failure without touching other sections', async () => {
-    const store = setup({
-      circulation: {
-        listDueToday: vi.fn().mockResolvedValue({ rows: [], total: 0, error: 'boom' }),
-      },
-    });
+  it.each(sections)(
+    '$label surfaces its own failure text and leaves every other section intact',
+    async (section) => {
+      const store = setup({
+        [section.repo]: { [section.method]: vi.fn().mockResolvedValue(section.failed) },
+      });
 
-    await store.init();
+      await store.init();
 
-    expect(store.dueTodayError()).toBe('boom');
-    expect(store.dueToday()).toEqual([]);
-  });
+      expect(section.readError(store)).toBe('boom');
+      expect(section.read(store)).toEqual(section.blank);
+      for (const other of sections.filter((s) => s.label !== section.label)) {
+        expect(other.readError(store), `${other.label} should be unaffected`).toBeNull();
+        expect(other.read(store)).toEqual(other.loaded);
+      }
+    },
+  );
 
   it('surfaces a top-overdue load failure without setting the overdue count', async () => {
     const store = setup({
@@ -223,80 +331,15 @@ describe('OverviewStore', () => {
     expect(store.overdueCount()).toBe(0);
   });
 
-  it('surfaces a holds-waiting count failure', async () => {
+  it('surfaces a rejected read (e.g. a network-level failure) as the section error', async () => {
     const store = setup({
-      holds: {
-        countByStatus: vi.fn().mockResolvedValue({ count: 0, error: 'boom' }),
-      },
+      audit: { listRecent: vi.fn().mockRejectedValue(new Error('network down')) },
     });
 
     await store.init();
 
-    expect(store.holdsWaitingCountError()).toBe('boom');
-    expect(store.holdsWaitingCount()).toBe(0);
-  });
-
-  it('surfaces a fines summary failure and keeps the currency default', async () => {
-    const store = setup({
-      fines: {
-        summary: vi.fn().mockResolvedValue({ row: null, error: 'boom' }),
-      },
-    });
-
-    await store.init();
-
-    expect(store.finesSummaryError()).toBe('boom');
-    expect(store.finesOutstanding()).toBe(0);
-    expect(store.currency()).toBe('USD');
-  });
-
-  it('surfaces a recent-activity load failure', async () => {
-    const store = setup({
-      audit: {
-        listRecent: vi.fn().mockResolvedValue({ rows: [], error: 'boom' }),
-      },
-    });
-
-    await store.init();
-
-    expect(store.recentActivityError()).toBe('boom');
+    expect(store.recentActivityError()).toBe('network down');
     expect(store.recentActivity()).toEqual([]);
-  });
-
-  it('surfaces a checkout-trend load failure', async () => {
-    const store = setup({
-      circulation: {
-        getCheckoutTrend: vi.fn().mockResolvedValue({ rows: [], error: 'boom' }),
-      },
-    });
-
-    await store.init();
-
-    expect(store.trendError()).toBe('boom');
-    expect(store.trend()).toEqual([]);
-  });
-
-  it('requests the configured page sizes for each limited section', async () => {
-    const listHolds = vi.fn().mockResolvedValue({ rows: [], total: 0, error: null });
-    const listDueToday = vi.fn().mockResolvedValue({ rows: [], total: 0, error: null });
-    const listOverdue = vi.fn().mockResolvedValue({ rows: [], total: 0, error: null });
-    const listRecent = vi.fn().mockResolvedValue({ rows: [], error: null });
-    const store = setup({
-      holds: { listHolds, countByStatus: vi.fn().mockResolvedValue({ count: 0, error: null }) },
-      circulation: {
-        listDueToday,
-        listOverdue,
-        getCheckoutTrend: vi.fn().mockResolvedValue({ rows: [], error: null }),
-      },
-      audit: { listRecent },
-    });
-
-    await store.init();
-
-    expect(listHolds).toHaveBeenCalledWith('ready', { page: 1, pageSize: 5 });
-    expect(listDueToday).toHaveBeenCalledWith({ page: 1, pageSize: 5 });
-    expect(listOverdue).toHaveBeenCalledWith({ page: 1, pageSize: 5 });
-    expect(listRecent).toHaveBeenCalledWith(8);
   });
 
   it('sets loading true while init is in flight and false once settled', async () => {
@@ -312,9 +355,119 @@ describe('OverviewStore', () => {
     const initPromise = store.init();
     expect(store.loading()).toBe(true);
 
+    await vi.waitFor(() => {
+      expect(listHolds).toHaveBeenCalled();
+    });
     resolveHolds({ rows: [], total: 0, error: null });
     await initPromise;
 
     expect(store.loading()).toBe(false);
+  });
+
+  it('keeps loading true while settings load after all overview reads settle', async () => {
+    let resolveSettings!: () => void;
+    const load = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSettings = resolve;
+        }),
+    );
+    const store = setup({ appSettings: { load } });
+
+    const initPromise = store.init();
+
+    await vi.waitFor(() => {
+      expect(store.holdsReady()).toEqual([holdRow()]);
+      expect(store.dueToday()).toEqual([dueTodayRow()]);
+      expect(store.topOverdue()).toEqual([overdueRow()]);
+      expect(store.holdsWaitingCount()).toBe(2);
+      expect(store.finesOutstanding()).toBe(42.5);
+      expect(store.recentActivity()).toEqual([auditRow()]);
+      expect(store.trend()).toEqual([trendPoint()]);
+      expect(store.loading()).toBe(true);
+    });
+
+    resolveSettings();
+    await initPromise;
+
+    expect(store.loading()).toBe(false);
+  });
+
+  it('keeps loading true when an earlier settings load settles before the active one', async () => {
+    let resolveFirstSettings!: () => void;
+    let resolveSecondSettings!: () => void;
+    const load = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirstSettings = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveSecondSettings = resolve;
+          }),
+      );
+    const store = setup({ appSettings: { load } });
+
+    const firstInit = store.init();
+    await vi.waitFor(() => {
+      expect(load).toHaveBeenCalledTimes(1);
+    });
+    const secondInit = store.init();
+    await vi.waitFor(() => {
+      expect(load).toHaveBeenCalledTimes(2);
+    });
+
+    resolveFirstSettings();
+    await vi.waitFor(() => {
+      expect(store.holdsReady()).toEqual([holdRow()]);
+      expect(store.dueToday()).toEqual([dueTodayRow()]);
+      expect(store.topOverdue()).toEqual([overdueRow()]);
+      expect(store.holdsWaitingCount()).toBe(2);
+      expect(store.finesOutstanding()).toBe(42.5);
+      expect(store.recentActivity()).toEqual([auditRow()]);
+      expect(store.trend()).toEqual([trendPoint()]);
+      expect(store.loading()).toBe(true);
+    });
+
+    resolveSecondSettings();
+    await Promise.all([firstInit, secondInit]);
+
+    expect(store.loading()).toBe(false);
+  });
+
+  it('keeps the latest overview result when an earlier initialization settles late', async () => {
+    let resolveInitialHolds!: (value: {
+      rows: HoldListItem[];
+      total: number;
+      error: null;
+    }) => void;
+    const listHolds = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ rows: HoldListItem[]; total: number; error: null }>((resolve) => {
+            resolveInitialHolds = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({ rows: [holdRow({ id: 'latest' })], total: 1, error: null });
+    const store = setup({ holds: { listHolds } });
+
+    void store.init();
+    await vi.waitFor(() => {
+      expect(listHolds).toHaveBeenCalledTimes(1);
+    });
+    void store.init();
+    await vi.waitFor(() => {
+      expect(listHolds).toHaveBeenCalledTimes(2);
+    });
+    resolveInitialHolds({ rows: [holdRow({ id: 'stale' })], total: 1, error: null });
+
+    await vi.waitFor(() => {
+      expect(store.holdsReady()).toEqual([holdRow({ id: 'latest' })]);
+    });
   });
 });
