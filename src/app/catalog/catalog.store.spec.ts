@@ -23,7 +23,7 @@ const dune: CatalogTitle = {
 
 describe('CatalogStore', () => {
   it('loads titles and exposes result count', async () => {
-    const listTitles = async () => ({ rows: [dune], total: 1 });
+    const listTitles = async () => ({ rows: [dune], total: 1, error: null });
     TestBed.configureTestingModule({
       providers: [
         CatalogStore,
@@ -31,7 +31,7 @@ describe('CatalogStore', () => {
           provide: CatalogRepository,
           useValue: {
             listTitles,
-            listGenres: async () => ['Sci-fi', 'Fiction'],
+            listGenres: async () => ({ rows: ['Sci-fi', 'Fiction'], error: null }),
             addTitle: async () => ({ ok: true, value: dune }),
             editCopy: async () => ({ ok: true, value: dune.copies[0] }),
             setCopyStatus: async () => ({ ok: true, value: dune.copies[0] }),
@@ -59,9 +59,9 @@ describe('CatalogStore', () => {
           useValue: {
             listTitles: async (q: unknown) => {
               queries.push(q);
-              return { rows: [], total: 0 };
+              return { rows: [], total: 0, error: null };
             },
-            listGenres: async () => [],
+            listGenres: async () => ({ rows: [], error: null }),
             addTitle: async () => ({ ok: false, error: 'unexpected' }),
             editCopy: async () => ({ ok: false, error: 'unexpected' }),
             setCopyStatus: async () => ({ ok: false, error: 'unexpected' }),
@@ -100,9 +100,9 @@ describe('CatalogStore', () => {
           useValue: {
             listTitles: async () => {
               listCalls += 1;
-              return { rows: listCalls === 1 ? [dune] : [updated], total: 1 };
+              return { rows: listCalls === 1 ? [dune] : [updated], total: 1, error: null };
             },
-            listGenres: async () => ['Sci-fi'],
+            listGenres: async () => ({ rows: ['Sci-fi'], error: null }),
             addTitle: async () => ({ ok: true, value: dune }),
             editCopy: async () => ({ ok: true, value: dune.copies[0] }),
             setCopyStatus: async () => ({
@@ -135,10 +135,8 @@ describe('CatalogStore', () => {
         {
           provide: CatalogRepository,
           useValue: {
-            listTitles: async () => {
-              throw new Error('network');
-            },
-            listGenres: async () => [],
+            listTitles: async () => ({ rows: [], total: 0, error: 'network' }),
+            listGenres: async () => ({ rows: [], error: null }),
             addTitle: async () => ({ ok: false, error: 'unexpected' }),
             editCopy: async () => ({ ok: false, error: 'unexpected' }),
             setCopyStatus: async () => ({ ok: false, error: 'unexpected' }),
@@ -165,11 +163,11 @@ describe('CatalogStore', () => {
             listTitles: async () => {
               listCalls += 1;
               if (listCalls > 1) {
-                throw new Error('network');
+                return { rows: [], total: 0, error: 'network' };
               }
-              return { rows: [dune], total: 1 };
+              return { rows: [dune], total: 1, error: null };
             },
-            listGenres: async () => ['Sci-fi', 'Fiction'],
+            listGenres: async () => ({ rows: ['Sci-fi', 'Fiction'], error: null }),
             addTitle: async () => ({ ok: false, error: 'unexpected' }),
             editCopy: async () => ({ ok: false, error: 'unexpected' }),
             setCopyStatus: async () => ({ ok: false, error: 'unexpected' }),
@@ -191,7 +189,7 @@ describe('CatalogStore', () => {
   it('keeps a newer empty-search result when a stale slow search resolves', async () => {
     let slowLoaderStarted = false;
     const deferred: {
-      resolve: (value: { rows: CatalogTitle[]; total: number }) => void;
+      resolve: (value: { rows: CatalogTitle[]; total: number; error: string | null }) => void;
     } = {
       resolve: () => undefined,
     };
@@ -204,13 +202,15 @@ describe('CatalogStore', () => {
             listTitles: async (q: { search: string }) => {
               if (q.search === 'slow') {
                 slowLoaderStarted = true;
-                return new Promise<{ rows: CatalogTitle[]; total: number }>((resolve) => {
-                  deferred.resolve = resolve;
-                });
+                return new Promise<{ rows: CatalogTitle[]; total: number; error: string | null }>(
+                  (resolve) => {
+                    deferred.resolve = resolve;
+                  },
+                );
               }
-              return { rows: [dune], total: 1 };
+              return { rows: [dune], total: 1, error: null };
             },
-            listGenres: async () => ['Sci-fi'],
+            listGenres: async () => ({ rows: ['Sci-fi'], error: null }),
             addTitle: async () => ({ ok: false, error: 'unexpected' }),
             editCopy: async () => ({ ok: false, error: 'unexpected' }),
             setCopyStatus: async () => ({ ok: false, error: 'unexpected' }),
@@ -228,7 +228,7 @@ describe('CatalogStore', () => {
     await vi.waitFor(() => expect(slowLoaderStarted).toBe(true));
 
     await store.applySearch('');
-    deferred.resolve({ rows: [], total: 0 });
+    deferred.resolve({ rows: [], total: 0, error: null });
     await slow;
 
     expect(store.rows()).toEqual([dune]);
@@ -236,7 +236,11 @@ describe('CatalogStore', () => {
   });
 
   it('keeps showing the previous result while a new page is still loading (sticky value)', async () => {
-    let resolveSecond: (value: { rows: CatalogTitle[]; total: number }) => void = () => undefined;
+    let resolveSecond: (value: {
+      rows: CatalogTitle[];
+      total: number;
+      error: string | null;
+    }) => void = () => undefined;
     let calls = 0;
     TestBed.configureTestingModule({
       providers: [
@@ -247,13 +251,15 @@ describe('CatalogStore', () => {
             listTitles: async () => {
               calls += 1;
               if (calls === 1) {
-                return { rows: [dune], total: 1 };
+                return { rows: [dune], total: 1, error: null };
               }
-              return new Promise<{ rows: CatalogTitle[]; total: number }>((resolve) => {
-                resolveSecond = resolve;
-              });
+              return new Promise<{ rows: CatalogTitle[]; total: number; error: string | null }>(
+                (resolve) => {
+                  resolveSecond = resolve;
+                },
+              );
             },
-            listGenres: async () => ['Sci-fi'],
+            listGenres: async () => ({ rows: ['Sci-fi'], error: null }),
             addTitle: async () => ({ ok: false, error: 'unexpected' }),
             editCopy: async () => ({ ok: false, error: 'unexpected' }),
             setCopyStatus: async () => ({ ok: false, error: 'unexpected' }),
@@ -271,7 +277,7 @@ describe('CatalogStore', () => {
     expect(store.loading()).toBe(true);
     expect(store.rows()).toEqual([dune]);
 
-    resolveSecond({ rows: [], total: 0 });
+    resolveSecond({ rows: [], total: 0, error: null });
     await reload;
 
     expect(store.rows()).toEqual([]);

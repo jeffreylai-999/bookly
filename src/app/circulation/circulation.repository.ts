@@ -1,5 +1,10 @@
 import { Service, inject } from '@angular/core';
 
+import {
+  createPostgrestAccess,
+  pageToRange,
+  toAccessResult,
+} from '../core/postgrest';
 import { SUPABASE_CLIENT, type Tables } from '../core/supabase';
 import type {
   CheckinCondition,
@@ -66,21 +71,26 @@ function flattenLoan(row: LoanJoinRow): LoanListItem {
 
 @Service()
 export class CirculationRepository {
-  private readonly supabase = inject(SUPABASE_CLIENT);
+  private readonly access = createPostgrestAccess(inject(SUPABASE_CLIENT));
 
   async findMemberByCard(
     cardBarcode: string,
   ): Promise<{ row: CheckoutMember | null; error: string | null }> {
     const barcode = cardBarcode.trim();
-    const { data, error } = await this.supabase
-      .from('members')
-      .select(MEMBER_SELECT)
-      .eq('card_barcode', barcode)
-      .maybeSingle();
+    const result = toAccessResult(
+      await this.access
+        .from('members')
+        .select(MEMBER_SELECT)
+        .eq('card_barcode', barcode)
+        .maybeSingle(),
+    );
 
+    if (!result.ok) {
+      return { row: null, error: result.error.message };
+    }
     return {
-      row: (data as CheckoutMember | null) ?? null,
-      error: error?.message ?? null,
+      row: (result.data as CheckoutMember | null) ?? null,
+      error: null,
     };
   }
 
@@ -88,7 +98,7 @@ export class CirculationRepository {
     query: string,
   ): Promise<{ rows: CheckoutMember[]; error: string | null }> {
     const search = query.trim();
-    let builder = this.supabase
+    let builder = this.access
       .from('members')
       .select(MEMBER_SELECT)
       .order('name', { ascending: true })
@@ -99,10 +109,13 @@ export class CirculationRepository {
       builder = builder.or(`name.ilike.${pattern},card_barcode.ilike.${pattern}`);
     }
 
-    const { data, error } = await builder;
+    const result = toAccessResult(await builder);
+    if (!result.ok) {
+      return { rows: [], error: result.error.message };
+    }
     return {
-      rows: (data as CheckoutMember[] | null) ?? [],
-      error: error?.message ?? null,
+      rows: (result.data as CheckoutMember[] | null) ?? [],
+      error: null,
     };
   }
 
@@ -110,26 +123,28 @@ export class CirculationRepository {
     barcode: string,
   ): Promise<{ row: CheckoutCopy | null; error: string | null }> {
     const code = barcode.trim();
-    const { data, error } = await this.supabase
-      .from('copies')
-      .select('id, barcode, status, title_id, titles(title, author)')
-      .eq('barcode', code)
-      .maybeSingle();
+    const result = toAccessResult(
+      await this.access
+        .from('copies')
+        .select('id, barcode, status, title_id, titles(title, author)')
+        .eq('barcode', code)
+        .maybeSingle(),
+    );
 
-    if (error) {
-      return { row: null, error: error.message };
+    if (!result.ok) {
+      return { row: null, error: result.error.message };
     }
-    if (!data) {
+    if (!result.data) {
       return { row: null, error: null };
     }
 
-    const titles = data.titles as { title: string; author: string } | null;
+    const titles = result.data.titles as { title: string; author: string } | null;
     return {
       row: {
-        id: data.id,
-        barcode: data.barcode,
-        status: data.status,
-        title_id: data.title_id,
+        id: result.data.id,
+        barcode: result.data.barcode,
+        status: result.data.status,
+        title_id: result.data.title_id,
         title: titles?.title ?? '',
         author: titles?.author ?? '',
       },
@@ -138,33 +153,35 @@ export class CirculationRepository {
   }
 
   async checkout(memberId: string, barcodes: string[]): Promise<CheckoutResult> {
-    const { data, error } = await this.supabase.rpc('checkout', {
+    const result = await this.access.rpc('checkout', {
       p_member_id: memberId,
       p_copy_barcodes: barcodes,
     });
 
-    if (error) {
-      return { ok: false, error: mapCheckoutError(error.message) };
+    if (!result.ok) {
+      return { ok: false, error: mapCheckoutError(result.error.message) };
     }
 
-    return { ok: true, loans: data ?? [] };
+    return { ok: true, loans: result.data ?? [] };
   }
 
   async findActiveLoanByBarcode(
     barcode: string,
   ): Promise<{ row: CheckinLookup | null; error: string | null }> {
     const code = barcode.trim();
-    const { data, error } = await this.supabase
-      .from('loans')
-      .select(LOAN_SELECT)
-      .eq('status', 'active')
-      .eq('copy.barcode', code)
-      .maybeSingle();
+    const result = toAccessResult(
+      await this.access
+        .from('loans')
+        .select(LOAN_SELECT)
+        .eq('status', 'active')
+        .eq('copy.barcode', code)
+        .maybeSingle(),
+    );
 
-    if (error) return { row: null, error: error.message };
-    if (!data) return { row: null, error: null };
+    if (!result.ok) return { row: null, error: result.error.message };
+    if (!result.data) return { row: null, error: null };
 
-    const row = data as LoanJoinRow;
+    const row = result.data as LoanJoinRow;
     if (!row.copy || !row.member) return { row: null, error: null };
 
     const { copy, member, ...loan } = row;
@@ -188,32 +205,37 @@ export class CirculationRepository {
   async getOverdueProjection(
     loanId: string,
   ): Promise<{ row: OverdueLoan | null; error: string | null }> {
-    const { data, error } = await this.supabase
-      .from('overdue_loans')
-      .select('*')
-      .eq('loan_id', loanId)
-      .maybeSingle();
+    const result = toAccessResult(
+      await this.access.from('overdue_loans').select('*').eq('loan_id', loanId).maybeSingle(),
+    );
 
-    return { row: data ?? null, error: error?.message ?? null };
+    if (!result.ok) {
+      return { row: null, error: result.error.message };
+    }
+    return { row: result.data ?? null, error: null };
   }
 
   async getMemberMoney(
     memberId: string,
   ): Promise<{ row: MemberMoney | null; error: string | null }> {
-    const fines = await this.supabase
-      .from('fines')
-      .select('amount, amount_paid')
-      .eq('member_id', memberId)
-      .in('status', ['outstanding', 'partial']);
-    if (fines.error) {
+    const fines = toAccessResult(
+      await this.access
+        .from('fines')
+        .select('amount, amount_paid')
+        .eq('member_id', memberId)
+        .in('status', ['outstanding', 'partial']),
+    );
+    if (!fines.ok) {
       return { row: null, error: fines.error.message };
     }
 
-    const overdue = await this.supabase
-      .from('overdue_loans')
-      .select('projected_fine')
-      .eq('member_id', memberId);
-    if (overdue.error) {
+    const overdue = toAccessResult(
+      await this.access
+        .from('overdue_loans')
+        .select('projected_fine')
+        .eq('member_id', memberId),
+    );
+    if (!overdue.ok) {
       return { row: null, error: overdue.error.message };
     }
 
@@ -232,13 +254,18 @@ export class CirculationRepository {
   async countWaitingHolds(
     titleId: string,
   ): Promise<{ count: number; error: string | null }> {
-    const { count, error } = await this.supabase
-      .from('holds')
-      .select('id', { count: 'exact', head: true })
-      .eq('title_id', titleId)
-      .eq('status', 'waiting');
+    const result = toAccessResult(
+      await this.access
+        .from('holds')
+        .select('id', { count: 'exact', head: true })
+        .eq('title_id', titleId)
+        .eq('status', 'waiting'),
+    );
 
-    return { count: count ?? 0, error: error?.message ?? null };
+    if (!result.ok) {
+      return { count: 0, error: result.error.message };
+    }
+    return { count: result.count ?? 0, error: null };
   }
 
   async checkin(
@@ -247,18 +274,18 @@ export class CirculationRepository {
     damagedAmount?: number,
     fillHold = false,
   ): Promise<CheckinResult> {
-    const { data, error } = await this.supabase.rpc('checkin', {
+    const result = await this.access.rpc('checkin', {
       p_copy_barcode: barcode.trim(),
       p_condition: condition,
       ...(damagedAmount === undefined ? {} : { p_damaged_amount: damagedAmount }),
       ...(fillHold ? { p_fill_hold: true } : {}),
     });
 
-    if (error) {
-      return { ok: false, error: mapCheckinError(error.message) };
+    if (!result.ok) {
+      return { ok: false, error: mapCheckinError(result.error.message) };
     }
 
-    const payload = data as CheckinRpcPayload;
+    const payload = result.data as CheckinRpcPayload;
     return {
       ok: true,
       loan: payload.loan,
@@ -271,31 +298,36 @@ export class CirculationRepository {
   }
 
   async renew(loanId: string): Promise<RenewResult> {
-    const { data, error } = await this.supabase.rpc('renew_loan', {
+    const result = await this.access.rpc('renew_loan', {
       p_loan_id: loanId,
     });
 
-    if (error) {
-      return { ok: false, error: mapRenewError(error.message) };
+    if (!result.ok) {
+      return { ok: false, error: mapRenewError(result.error.message) };
     }
 
-    return { ok: true, loan: data as Loan };
+    return { ok: true, loan: result.data as Loan };
   }
 
   /** Current loans for the member-detail page — no pagination, the borrow cap keeps this small. */
   async listActiveLoansByMember(
     memberId: string,
   ): Promise<{ rows: LoanListItem[]; error: string | null }> {
-    const { data, error } = await this.supabase
-      .from('loans')
-      .select(LOAN_LIST_SELECT)
-      .eq('member_id', memberId)
-      .eq('status', 'active')
-      .order('due_at', { ascending: true });
+    const result = toAccessResult(
+      await this.access
+        .from('loans')
+        .select(LOAN_LIST_SELECT)
+        .eq('member_id', memberId)
+        .eq('status', 'active')
+        .order('due_at', { ascending: true }),
+    );
 
+    if (!result.ok) {
+      return { rows: [], error: result.error.message };
+    }
     return {
-      rows: ((data as LoanJoinRow[] | null) ?? []).map(flattenLoan),
-      error: error?.message ?? null,
+      rows: ((result.data as LoanJoinRow[] | null) ?? []).map(flattenLoan),
+      error: null,
     };
   }
 
@@ -303,67 +335,81 @@ export class CirculationRepository {
     status: 'active' | 'returned',
     query: ListQuery,
   ): Promise<ListResult<LoanListItem>> {
-    const from = (query.page - 1) * query.pageSize;
-    const to = from + query.pageSize - 1;
+    const { from, to } = pageToRange(query.page, query.pageSize);
     const active = status === 'active';
 
-    const { data, error, count } = await this.supabase
-      .from('loans')
-      .select(LOAN_LIST_SELECT, { count: 'exact' })
-      .eq('status', status)
-      .order(active ? 'due_at' : 'returned_at', { ascending: active })
-      .range(from, to);
+    const result = toAccessResult(
+      await this.access
+        .from('loans')
+        .select(LOAN_LIST_SELECT, { count: 'exact' })
+        .eq('status', status)
+        .order(active ? 'due_at' : 'returned_at', { ascending: active })
+        .range(from, to),
+    );
 
+    if (!result.ok) {
+      return { rows: [], total: 0, error: result.error.message };
+    }
     return {
-      rows: ((data as LoanJoinRow[] | null) ?? []).map(flattenLoan),
-      total: count ?? 0,
-      error: error?.message ?? null,
+      rows: ((result.data as LoanJoinRow[] | null) ?? []).map(flattenLoan),
+      total: result.count ?? 0,
+      error: null,
     };
   }
 
   async listOverdue(query: ListQuery): Promise<ListResult<OverdueLoan>> {
-    const from = (query.page - 1) * query.pageSize;
-    const to = from + query.pageSize - 1;
+    const { from, to } = pageToRange(query.page, query.pageSize);
 
-    const { data, error, count } = await this.supabase
-      .from('overdue_loans')
-      .select('*', { count: 'exact' })
-      .order('days_late', { ascending: false })
-      .order('due_at', { ascending: true })
-      .range(from, to);
+    const result = toAccessResult(
+      await this.access
+        .from('overdue_loans')
+        .select('*', { count: 'exact' })
+        .order('days_late', { ascending: false })
+        .order('due_at', { ascending: true })
+        .range(from, to),
+    );
 
+    if (!result.ok) {
+      return { rows: [], total: 0, error: result.error.message };
+    }
     return {
-      rows: data ?? [],
-      total: count ?? 0,
-      error: error?.message ?? null,
+      rows: result.data ?? [],
+      total: result.count ?? 0,
+      error: null,
     };
   }
 
   /** Due today, library-local (due_today_loans view) — feeds the Overview launchpad. */
   async listDueToday(query: ListQuery): Promise<ListResult<DueTodayLoan>> {
-    const from = (query.page - 1) * query.pageSize;
-    const to = from + query.pageSize - 1;
+    const { from, to } = pageToRange(query.page, query.pageSize);
 
-    const { data, error, count } = await this.supabase
-      .from('due_today_loans')
-      .select('*', { count: 'exact' })
-      .order('due_at', { ascending: true })
-      .range(from, to);
+    const result = toAccessResult(
+      await this.access
+        .from('due_today_loans')
+        .select('*', { count: 'exact' })
+        .order('due_at', { ascending: true })
+        .range(from, to),
+    );
 
+    if (!result.ok) {
+      return { rows: [], total: 0, error: result.error.message };
+    }
     return {
-      rows: data ?? [],
-      total: count ?? 0,
-      error: error?.message ?? null,
+      rows: result.data ?? [],
+      total: result.count ?? 0,
+      error: null,
     };
   }
 
   /** 14-day, zero-filled, library-local checkout counts (checkout_trend view). */
   async getCheckoutTrend(): Promise<{ rows: CheckoutTrendPoint[]; error: string | null }> {
-    const { data, error } = await this.supabase
-      .from('checkout_trend')
-      .select('*')
-      .order('day', { ascending: true });
+    const result = toAccessResult(
+      await this.access.from('checkout_trend').select('*').order('day', { ascending: true }),
+    );
 
-    return { rows: data ?? [], error: error?.message ?? null };
+    if (!result.ok) {
+      return { rows: [], error: result.error.message };
+    }
+    return { rows: result.data ?? [], error: null };
   }
 }
