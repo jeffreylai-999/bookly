@@ -64,6 +64,43 @@ describe('CatalogRepository', () => {
     expect(result).toEqual({ rows: [], total: 0, error: 'network' });
   });
 
+  it('lists unique genres ordered from the titles table', async () => {
+    const builder = createQueryBuilderMock({
+      data: [{ genre: 'Fiction' }, { genre: 'Sci-fi' }, { genre: 'Fiction' }],
+      error: null,
+    });
+    const client = createPostgrestClientMock({ from: builder });
+
+    await TestBed.configureTestingModule({
+      providers: [CatalogRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    }).compileComponents();
+
+    const repo = TestBed.inject(CatalogRepository);
+    const result = await repo.listGenres();
+
+    expect(client.from).toHaveBeenCalledWith('titles');
+    expect(builder.select).toHaveBeenCalledWith('genre');
+    expect(builder.order).toHaveBeenCalledWith('genre');
+    expect(result).toEqual({ rows: ['Fiction', 'Sci-fi'], error: null });
+  });
+
+  it('returns a genres error instead of throwing when the titles query fails', async () => {
+    const builder = createQueryBuilderMock({
+      data: null,
+      error: { message: 'network' },
+    });
+    const client = createPostgrestClientMock({ from: builder });
+
+    await TestBed.configureTestingModule({
+      providers: [CatalogRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    }).compileComponents();
+
+    const repo = TestBed.inject(CatalogRepository);
+    const result = await repo.listGenres();
+
+    expect(result).toEqual({ rows: [], error: 'network' });
+  });
+
   it('maps unique ISBN failures on addTitle via add_title_with_copies', async () => {
     const client = createPostgrestClientMock({
       rpc: {

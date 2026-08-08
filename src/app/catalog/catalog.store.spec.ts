@@ -152,6 +152,30 @@ describe('CatalogStore', () => {
     expect(store.isEmpty()).toBe(false);
   });
 
+  it('surfaces a genres load failure as load_failed', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        CatalogStore,
+        {
+          provide: CatalogRepository,
+          useValue: {
+            listTitles: async () => ({ rows: [dune], total: 1, error: null }),
+            listGenres: async () => ({ rows: [], error: 'network' }),
+            addTitle: async () => ({ ok: false, error: 'unexpected' }),
+            editCopy: async () => ({ ok: false, error: 'unexpected' }),
+            setCopyStatus: async () => ({ ok: false, error: 'unexpected' }),
+          },
+        },
+      ],
+    });
+
+    const store = TestBed.inject(CatalogStore);
+    await store.load();
+
+    expect(store.error()).toBe('load_failed');
+    expect(store.isEmpty()).toBe(false);
+  });
+
   it('retains loaded genres when a later title load fails', async () => {
     let listCalls = 0;
     TestBed.configureTestingModule({
