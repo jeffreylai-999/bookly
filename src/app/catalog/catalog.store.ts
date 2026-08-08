@@ -45,7 +45,10 @@ export class CatalogStore {
         }),
         this.repo.listGenres(),
       ]);
-      return { rows: list.rows, total: list.total, genres };
+      if (list.error || genres.error) {
+        throw new Error('load_failed');
+      }
+      return { rows: list.rows, total: list.total, genres: genres.rows };
     },
   });
 

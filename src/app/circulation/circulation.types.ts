@@ -1,3 +1,4 @@
+import { mapRpcError } from '../core/postgrest';
 import type { Enums, Json, Tables } from '../core/supabase';
 import type { FineReason, FineStatus } from '../fines/fines.types';
 
@@ -71,29 +72,26 @@ export const CHECKOUT_ERROR_KEYS: Record<CheckoutError, string> = {
   unexpected: 'circulation.errors.unexpected',
 };
 
+const CHECKOUT_ERROR_CODES = [
+  'not_authenticated',
+  'profile_missing',
+  'member_not_found',
+  'member_suspended',
+  'member_blocked',
+  'member_fine_blocked',
+  'member_borrow_cap',
+  'copies_required',
+  'copy_not_found',
+  'copy_on_loan',
+  'copy_on_hold_shelf',
+  'copy_lost',
+  'copy_damaged',
+  'copy_retired',
+  'duplicate_barcode',
+] as const satisfies readonly Exclude<CheckoutError, 'unexpected'>[];
+
 export function mapCheckoutError(message: string | undefined): CheckoutError {
-  if (!message) return 'unexpected';
-  const codes: CheckoutError[] = [
-    'not_authenticated',
-    'profile_missing',
-    'member_not_found',
-    'member_suspended',
-    'member_blocked',
-    'member_fine_blocked',
-    'member_borrow_cap',
-    'copies_required',
-    'copy_not_found',
-    'copy_on_loan',
-    'copy_on_hold_shelf',
-    'copy_lost',
-    'copy_damaged',
-    'copy_retired',
-    'duplicate_barcode',
-  ];
-  for (const code of codes) {
-    if (message.includes(code)) return code;
-  }
-  return 'unexpected';
+  return mapRpcError(message, CHECKOUT_ERROR_CODES);
 }
 
 // ---------------------------------------------------------------------------
@@ -125,22 +123,19 @@ export const CHECKIN_ERROR_KEYS: Record<CheckinError, string> = {
   unexpected: 'circulation.checkin.errors.unexpected',
 };
 
+const CHECKIN_ERROR_CODES = [
+  'not_authenticated',
+  'profile_missing',
+  'copy_not_found',
+  'loan_not_found',
+  'invalid_condition',
+  'damaged_amount_unexpected',
+  'invalid_damaged_amount',
+  'fill_hold_requires_ok',
+] as const satisfies readonly Exclude<CheckinError, 'unexpected'>[];
+
 export function mapCheckinError(message: string | undefined): CheckinError {
-  if (!message) return 'unexpected';
-  const codes: CheckinError[] = [
-    'not_authenticated',
-    'profile_missing',
-    'copy_not_found',
-    'loan_not_found',
-    'invalid_condition',
-    'damaged_amount_unexpected',
-    'invalid_damaged_amount',
-    'fill_hold_requires_ok',
-  ];
-  for (const code of codes) {
-    if (message.includes(code)) return code;
-  }
-  return 'unexpected';
+  return mapRpcError(message, CHECKIN_ERROR_CODES);
 }
 
 /** Active loan plus the copy and member behind it, resolved for check-in. */
@@ -230,23 +225,20 @@ export const RENEW_ERROR_KEYS: Record<RenewError, string> = {
   unexpected: 'circulation.renew.errors.unexpected',
 };
 
+const RENEW_ERROR_CODES = [
+  'not_authenticated',
+  'profile_missing',
+  'loan_not_found',
+  'renewal_limit_reached',
+  'title_has_waiting_holds',
+  'member_suspended',
+  'member_blocked',
+  'member_fine_blocked',
+  'loan_overdue',
+] as const satisfies readonly Exclude<RenewError, 'unexpected'>[];
+
 export function mapRenewError(message: string | undefined): RenewError {
-  if (!message) return 'unexpected';
-  const codes: RenewError[] = [
-    'not_authenticated',
-    'profile_missing',
-    'loan_not_found',
-    'renewal_limit_reached',
-    'title_has_waiting_holds',
-    'member_suspended',
-    'member_blocked',
-    'member_fine_blocked',
-    'loan_overdue',
-  ];
-  for (const code of codes) {
-    if (message.includes(code)) return code;
-  }
-  return 'unexpected';
+  return mapRpcError(message, RENEW_ERROR_CODES);
 }
 
 export type RenewResult = { ok: true; loan: Loan } | { ok: false; error: RenewError };

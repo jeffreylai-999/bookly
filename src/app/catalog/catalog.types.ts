@@ -46,6 +46,7 @@ export interface CatalogListQuery {
 export interface CatalogListResult {
   rows: CatalogTitle[];
   total: number;
+  error: string | null;
 }
 
 export interface AddTitleInput {

@@ -1,5 +1,12 @@
 import { Service, inject } from '@angular/core';
 
+import {
+  createPostgrestAccess,
+  mapPostgresCode,
+  mapRpcError,
+  pageToRange,
+  toAccessResult,
+} from '../core/postgrest';
 import { SUPABASE_CLIENT } from '../core/supabase';
 import type {
   AddTitleInput,
@@ -47,40 +54,45 @@ function toCatalogTitle(row: {
   };
 }
 
-function mapRpcError(message: string | undefined): CatalogMutationError {
+const CATALOG_RPC_ERROR_CODES = [
+  'copy_on_loan',
+  'admin_required',
+  'invalid_status_transition',
+  'copy_not_found',
+  'barcode_invalid',
+  'isbn_taken',
+  'barcode_taken',
+] as const satisfies readonly Exclude<CatalogMutationError, 'unexpected'>[];
+
+function mapCatalogRpcError(message: string | undefined): CatalogMutationError {
   if (!message) return 'unexpected';
-  if (message.includes('copy_on_loan')) return 'copy_on_loan';
-  if (message.includes('admin_required')) return 'admin_required';
-  if (message.includes('invalid_status_transition')) return 'invalid_status_transition';
-  if (message.includes('copy_not_found')) return 'copy_not_found';
-  if (message.includes('barcode_invalid')) return 'barcode_invalid';
   if (message.includes('duplicate key') && message.includes('isbn')) return 'isbn_taken';
   if (message.includes('duplicate key') && message.includes('barcode')) return 'barcode_taken';
   if (message.includes('titles_isbn_unique')) return 'isbn_taken';
   if (message.includes('copies_barcode_unique')) return 'barcode_taken';
-  return 'unexpected';
+  return mapRpcError(message, CATALOG_RPC_ERROR_CODES);
 }
 
-function mapWriteError(code: string | undefined, message: string | undefined): CatalogMutationError {
+function mapCatalogWriteError(
+  code: string | null | undefined,
+  message: string | undefined,
+): CatalogMutationError {
   if (code === '23505') {
     if (message?.toLowerCase().includes('barcode')) return 'barcode_taken';
     return 'isbn_taken';
   }
-  if (code === '23514' || message?.includes('copies_barcode_bk_prefix')) return 'barcode_invalid';
-  return 'unexpected';
+  if (message?.includes('copies_barcode_bk_prefix')) return 'barcode_invalid';
+  return mapPostgresCode(code, { '23514': 'barcode_invalid' }, 'unexpected');
 }
 
 @Service()
 export class CatalogRepository {
-  private readonly supabase = inject(SUPABASE_CLIENT);
+  private readonly access = createPostgrestAccess(inject(SUPABASE_CLIENT));
 
   async listTitles(query: CatalogListQuery): Promise<CatalogListResult> {
-    const page = Math.max(1, query.page);
-    const pageSize = Math.max(1, query.pageSize);
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
+    const { from, to } = pageToRange(query.page, query.pageSize);
 
-    let builder = this.supabase
+    let builder = this.access
       .from('titles')
       .select('*, copies(id, barcode, status)', { count: 'exact' })
       .order('title', { ascending: true })
@@ -96,27 +108,30 @@ export class CatalogRepository {
       builder = builder.eq('genre', query.genre.trim());
     }
 
-    const { data, error, count } = await builder;
-    if (error) {
-      throw new Error(error.message);
+    const result = toAccessResult(await builder);
+    if (!result.ok) {
+      return { rows: [], total: 0, error: result.error.message };
     }
 
     return {
-      rows: (data ?? []).map(toCatalogTitle),
-      total: count ?? 0,
+      rows: (result.data ?? []).map(toCatalogTitle),
+      total: result.count ?? 0,
+      error: null,
     };
   }
 
-  async listGenres(): Promise<string[]> {
-    const { data, error } = await this.supabase.from('titles').select('genre').order('genre');
-    if (error) {
-      throw new Error(error.message);
+  async listGenres(): Promise<{ rows: string[]; error: string | null }> {
+    const result = toAccessResult(
+      await this.access.from('titles').select('genre').order('genre'),
+    );
+    if (!result.ok) {
+      return { rows: [], error: result.error.message };
     }
     const seen = new Set<string>();
-    for (const row of data ?? []) {
+    for (const row of result.data ?? []) {
       seen.add(row.genre);
     }
-    return [...seen];
+    return { rows: [...seen], error: null };
   }
 
   async addTitle(input: AddTitleInput): Promise<CatalogMutationResult<CatalogTitle>> {
@@ -133,7 +148,7 @@ export class CatalogRepository {
 
     // Generator types optional SQL args as required `string`/`number`; empty
     // strings and null costs are valid at runtime (nullif / null insert).
-    const { data, error } = await this.supabase.rpc('add_title_with_copies', {
+    const result = await this.access.rpc('add_title_with_copies', {
       p_title: input.title.trim(),
       p_author: input.author.trim(),
       p_genre: input.genre.trim(),
@@ -143,11 +158,14 @@ export class CatalogRepository {
       p_barcodes: barcodes,
     });
 
-    if (error || !data) {
-      return { ok: false, error: mapRpcError(error?.message) };
+    if (!result.ok) {
+      return { ok: false, error: mapCatalogRpcError(result.error.message) };
+    }
+    if (!result.data) {
+      return { ok: false, error: 'unexpected' };
     }
 
-    const payload = data as {
+    const payload = result.data as {
       id: string;
       title: string;
       author: string;
@@ -169,31 +187,42 @@ export class CatalogRepository {
     }
 
     const patch: CopiesClientUpdate = { barcode };
-    const { data, error } = await this.supabase
-      .from('copies')
-      .update(patch)
-      .eq('id', input.copyId)
-      .select('*')
-      .single();
+    const result = toAccessResult(
+      await this.access
+        .from('copies')
+        .update(patch)
+        .eq('id', input.copyId)
+        .select('*')
+        .single(),
+    );
 
-    if (error || !data) {
-      return { ok: false, error: mapWriteError(error?.code, error?.message) };
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: mapCatalogWriteError(result.error.code, result.error.message),
+      };
     }
-    return { ok: true, value: data };
+    if (!result.data) {
+      return { ok: false, error: 'unexpected' };
+    }
+    return { ok: true, value: result.data };
   }
 
   async setCopyStatus(
     copyId: string,
     status: CopyStatus,
   ): Promise<CatalogMutationResult<CopyRow>> {
-    const { data, error } = await this.supabase.rpc('set_copy_status', {
+    const result = await this.access.rpc('set_copy_status', {
       p_copy_id: copyId,
       p_status: status,
     });
 
-    if (error || !data) {
-      return { ok: false, error: mapRpcError(error?.message) };
+    if (!result.ok) {
+      return { ok: false, error: mapCatalogRpcError(result.error.message) };
     }
-    return { ok: true, value: data };
+    if (!result.data) {
+      return { ok: false, error: 'unexpected' };
+    }
+    return { ok: true, value: result.data };
   }
 }
