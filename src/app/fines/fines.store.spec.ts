@@ -78,6 +78,25 @@ describe('FinesStore', () => {
     expect(store.statusFilter()).toBe('outstanding');
   });
 
+  it('reloads page 1 when a populated result makes the selected page out of range', async () => {
+    const list = vi
+      .fn()
+      .mockImplementation(({ page }: { page: number }) =>
+        Promise.resolve(
+          page === 2
+            ? { rows: [], total: 1, error: null }
+            : { rows: [fineRow], total: 1, error: null },
+        ),
+      );
+    const store = setup({ list });
+
+    await store.setPage(2);
+
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1 }));
+    expect(store.page()).toBe(1);
+    expect(store.rows()).toEqual([fineRow]);
+  });
+
   it('surfaces list errors', async () => {
     const store = setup({
       list: vi.fn().mockResolvedValue({ rows: [], total: 0, error: 'boom' }),
@@ -85,7 +104,7 @@ describe('FinesStore', () => {
 
     await store.init();
 
-    expect(store.error()).toBe('boom');
+    expect(store.error()).toBe('load_failed');
     expect(store.rows()).toEqual([]);
   });
 
@@ -178,7 +197,9 @@ describe('FinesStore', () => {
   it('waiveFine refreshes list + summary without touching the receipt', async () => {
     const list = vi.fn().mockResolvedValue({ rows: [], total: 0, error: null });
     const summary = vi.fn().mockResolvedValue({ row: summaryRow, error: null });
-    const waiveFine = vi.fn().mockResolvedValue({ ok: true, fine: { ...fineRow, status: 'waived' } });
+    const waiveFine = vi
+      .fn()
+      .mockResolvedValue({ ok: true, fine: { ...fineRow, status: 'waived' } });
     const store = setup({ list, summary, waiveFine });
     await store.init();
 
