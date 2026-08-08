@@ -1,3 +1,4 @@
+import { mapRpcError } from '../core/postgrest';
 import type { Enums, Json, Tables } from '../core/supabase';
 
 export type Fine = Tables<'fines'>;
@@ -202,17 +203,6 @@ export type WaiveResult = { ok: true; fine: Fine } | { ok: false; error: WaiveEr
 export type VoidResult =
   | { ok: true; payment: Payment; fine: Fine }
   | { ok: false; error: VoidError };
-
-function mapRpcError<TError extends string>(
-  message: string | undefined,
-  codes: TError[],
-): TError | 'unexpected' {
-  if (!message) return 'unexpected';
-  for (const code of codes) {
-    if (message.includes(code)) return code;
-  }
-  return 'unexpected';
-}
 
 export function mapPaymentError(message: string | undefined): PaymentError {
   return mapRpcError(message, [

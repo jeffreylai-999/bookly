@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 
+import type { ListResult } from '../core/postgrest';
 import { HoldsRepository } from './holds.repository';
-import type { ListResult } from './holds.repository';
 import { HoldsStore } from './holds.store';
 import type { HoldListItem } from './holds.types';
 

@@ -1,4 +1,6 @@
 export type {
+  ListQuery,
+  ListResult,
   PostgrestAccess,
   PostgrestAccessResult,
   PostgrestFailure,

@@ -1,39 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 
+import {
+  createPostgrestClientMock,
+  createQueryBuilderMock,
+} from '../core/postgrest/postgrest-access.testing';
 import { SUPABASE_CLIENT } from '../core/supabase';
 import { HoldsRepository } from './holds.repository';
-
-type QueryResult = {
-  data: unknown;
-  error: { message: string; code?: string } | null;
-  count?: number | null;
-};
-
-function createQueryBuilder(resolve: () => QueryResult | Promise<QueryResult>) {
-  const builder: Record<string, unknown> = {};
-  const self = () => builder;
-  for (const method of [
-    'select',
-    'insert',
-    'update',
-    'eq',
-    'or',
-    'ilike',
-    'order',
-    'range',
-    'in',
-    'limit',
-    'maybeSingle',
-    'single',
-  ]) {
-    builder[method] = () => self();
-  }
-  builder['then'] = (
-    onfulfilled: (v: QueryResult) => unknown,
-    onrejected?: (e: unknown) => unknown,
-  ) => Promise.resolve(resolve()).then(onfulfilled, onrejected);
-  return builder;
-}
 
 const holdRow = {
   id: 'h1',
@@ -52,29 +24,8 @@ const holdRow = {
 
 describe('HoldsRepository', () => {
   it('lists holds oldest first with title, member, and copy joined', async () => {
-    const orderCalls: [string, { ascending: boolean }][] = [];
-    const eqCalls: [string, unknown][] = [];
-    const client = {
-      from: (table: string) => {
-        expect(table).toBe('holds');
-        const builder = createQueryBuilder(() => ({ data: [holdRow], error: null, count: 1 }));
-        const originalOrder = builder['order'] as (
-          c: string,
-          o: { ascending: boolean },
-        ) => unknown;
-        builder['order'] = (column: string, options: { ascending: boolean }) => {
-          orderCalls.push([column, options]);
-          return originalOrder(column, options);
-        };
-        const originalEq = builder['eq'] as (c: string, v: unknown) => unknown;
-        builder['eq'] = (column: string, value: unknown) => {
-          eqCalls.push([column, value]);
-          return originalEq(column, value);
-        };
-        return builder;
-      },
-      rpc: async () => ({ data: null, error: null }),
-    };
+    const builder = createQueryBuilderMock({ data: [holdRow], error: null, count: 1 });
+    const client = createPostgrestClientMock({ from: builder });
 
     TestBed.configureTestingModule({
       providers: [HoldsRepository, { provide: SUPABASE_CLIENT, useValue: client }],
@@ -83,8 +34,10 @@ describe('HoldsRepository', () => {
     const repo = TestBed.inject(HoldsRepository);
     const result = await repo.listHolds('waiting', { page: 1, pageSize: 10 });
 
-    expect(orderCalls).toEqual([['created_at', { ascending: true }]]);
-    expect(eqCalls).toEqual([['status', 'waiting']]);
+    expect(client.from).toHaveBeenCalledWith('holds');
+    expect(builder.order).toHaveBeenCalledWith('created_at', { ascending: true });
+    expect(builder.eq).toHaveBeenCalledWith('status', 'waiting');
+    expect(builder.range).toHaveBeenCalledWith(0, 9);
     expect(result.error).toBeNull();
     expect(result.total).toBe(1);
     expect(result.rows[0]?.title?.title).toBe('Dune');
@@ -92,18 +45,8 @@ describe('HoldsRepository', () => {
   });
 
   it('skips the status filter for the all option', async () => {
-    let eqCalled = false;
-    const client = {
-      from: () => {
-        const builder = createQueryBuilder(() => ({ data: [], error: null, count: 0 }));
-        builder['eq'] = () => {
-          eqCalled = true;
-          return builder;
-        };
-        return builder;
-      },
-      rpc: async () => ({ data: null, error: null }),
-    };
+    const builder = createQueryBuilderMock({ data: [], error: null, count: 0 });
+    const client = createPostgrestClientMock({ from: builder });
 
     TestBed.configureTestingModule({
       providers: [HoldsRepository, { provide: SUPABASE_CLIENT, useValue: client }],
@@ -112,34 +55,12 @@ describe('HoldsRepository', () => {
     const repo = TestBed.inject(HoldsRepository);
     await repo.listHolds('', { page: 1, pageSize: 10 });
 
-    expect(eqCalled).toBe(false);
+    expect(builder.eq).not.toHaveBeenCalled();
   });
 
   it("lists a member's holds oldest first with title and copy joined", async () => {
-    const fromCalls: string[] = [];
-    const orderCalls: [string, { ascending: boolean }][] = [];
-    const eqCalls: [string, unknown][] = [];
-    const client = {
-      from: (table: string) => {
-        fromCalls.push(table);
-        const builder = createQueryBuilder(() => ({ data: [holdRow], error: null }));
-        const originalOrder = builder['order'] as (
-          c: string,
-          o: { ascending: boolean },
-        ) => unknown;
-        builder['order'] = (column: string, options: { ascending: boolean }) => {
-          orderCalls.push([column, options]);
-          return originalOrder(column, options);
-        };
-        const originalEq = builder['eq'] as (c: string, v: unknown) => unknown;
-        builder['eq'] = (column: string, value: unknown) => {
-          eqCalls.push([column, value]);
-          return originalEq(column, value);
-        };
-        return builder;
-      },
-      rpc: async () => ({ data: null, error: null }),
-    };
+    const builder = createQueryBuilderMock({ data: [holdRow], error: null });
+    const client = createPostgrestClientMock({ from: builder });
 
     TestBed.configureTestingModule({
       providers: [HoldsRepository, { provide: SUPABASE_CLIENT, useValue: client }],
@@ -148,22 +69,17 @@ describe('HoldsRepository', () => {
     const repo = TestBed.inject(HoldsRepository);
     const result = await repo.listByMember('m1');
 
-    expect(fromCalls).toEqual(['holds']);
-    expect(eqCalls).toEqual([['member_id', 'm1']]);
-    expect(orderCalls).toEqual([['created_at', { ascending: true }]]);
+    expect(client.from).toHaveBeenCalledWith('holds');
+    expect(builder.eq).toHaveBeenCalledWith('member_id', 'm1');
+    expect(builder.order).toHaveBeenCalledWith('created_at', { ascending: true });
     expect(result.error).toBeNull();
     expect(result.rows[0]?.title?.title).toBe('Dune');
   });
 
   it('marks ready with the title and copy barcode — never a hold id', async () => {
-    const rpcCalls: unknown[] = [];
-    const client = {
-      from: () => createQueryBuilder(() => ({ data: null, error: null })),
-      rpc: async (fn: string, args: unknown) => {
-        rpcCalls.push({ fn, args });
-        return { data: { ...holdRow, status: 'ready' }, error: null };
-      },
-    };
+    const client = createPostgrestClientMock({
+      rpc: { data: { ...holdRow, status: 'ready' }, error: null },
+    });
 
     TestBed.configureTestingModule({
       providers: [HoldsRepository, { provide: SUPABASE_CLIENT, useValue: client }],
@@ -172,17 +88,17 @@ describe('HoldsRepository', () => {
     const repo = TestBed.inject(HoldsRepository);
     const result = await repo.markReady('t1', ' BK-001 ');
 
-    expect(rpcCalls).toEqual([
-      { fn: 'mark_ready', args: { p_title_id: 't1', p_copy_barcode: 'BK-001' } },
-    ]);
+    expect(client.rpc).toHaveBeenCalledWith('mark_ready', {
+      p_title_id: 't1',
+      p_copy_barcode: 'BK-001',
+    });
     expect(result).toEqual({ ok: true, hold: { ...holdRow, status: 'ready' } });
   });
 
   it('maps mark_ready RPC errors to typed codes', async () => {
-    const client = {
-      from: () => createQueryBuilder(() => ({ data: null, error: null })),
-      rpc: async () => ({ data: null, error: { message: 'copy_not_available' } }),
-    };
+    const client = createPostgrestClientMock({
+      rpc: { data: null, error: { message: 'copy_not_available' } },
+    });
 
     TestBed.configureTestingModule({
       providers: [HoldsRepository, { provide: SUPABASE_CLIENT, useValue: client }],
@@ -195,20 +111,8 @@ describe('HoldsRepository', () => {
   });
 
   it('counts holds by status for the Overview stat card', async () => {
-    const eqCalls: [string, unknown][] = [];
-    const client = {
-      from: (table: string) => {
-        expect(table).toBe('holds');
-        const builder = createQueryBuilder(() => ({ data: null, error: null, count: 4 }));
-        const originalEq = builder['eq'] as (c: string, v: unknown) => unknown;
-        builder['eq'] = (column: string, value: unknown) => {
-          eqCalls.push([column, value]);
-          return originalEq(column, value);
-        };
-        return builder;
-      },
-      rpc: async () => ({ data: null, error: null }),
-    };
+    const builder = createQueryBuilderMock({ data: null, error: null, count: 4 });
+    const client = createPostgrestClientMock({ from: builder });
 
     TestBed.configureTestingModule({
       providers: [HoldsRepository, { provide: SUPABASE_CLIENT, useValue: client }],
@@ -217,19 +121,15 @@ describe('HoldsRepository', () => {
     const repo = TestBed.inject(HoldsRepository);
     const result = await repo.countByStatus('waiting');
 
-    expect(eqCalls).toEqual([['status', 'waiting']]);
+    expect(client.from).toHaveBeenCalledWith('holds');
+    expect(builder.eq).toHaveBeenCalledWith('status', 'waiting');
     expect(result).toEqual({ count: 4, error: null });
   });
 
   it('cancels a hold by id', async () => {
-    const rpcCalls: unknown[] = [];
-    const client = {
-      from: () => createQueryBuilder(() => ({ data: null, error: null })),
-      rpc: async (fn: string, args: unknown) => {
-        rpcCalls.push({ fn, args });
-        return { data: { ...holdRow, status: 'cancelled' }, error: null };
-      },
-    };
+    const client = createPostgrestClientMock({
+      rpc: { data: { ...holdRow, status: 'cancelled' }, error: null },
+    });
 
     TestBed.configureTestingModule({
       providers: [HoldsRepository, { provide: SUPABASE_CLIENT, useValue: client }],
@@ -238,7 +138,7 @@ describe('HoldsRepository', () => {
     const repo = TestBed.inject(HoldsRepository);
     const result = await repo.cancelHold('h1');
 
-    expect(rpcCalls).toEqual([{ fn: 'cancel_hold', args: { p_hold_id: 'h1' } }]);
+    expect(client.rpc).toHaveBeenCalledWith('cancel_hold', { p_hold_id: 'h1' });
     expect(result).toEqual({ ok: true });
   });
 });

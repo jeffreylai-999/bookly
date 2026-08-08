@@ -1,5 +1,12 @@
 import { Service, inject } from '@angular/core';
 
+import {
+  createPostgrestAccess,
+  pageToRange,
+  toAccessResult,
+  type ListQuery,
+  type ListResult,
+} from '../core/postgrest';
 import { SUPABASE_CLIENT } from '../core/supabase';
 import type {
   FineActionPayload,
@@ -17,27 +24,25 @@ const LIST_SELECT =
   '*, member:members(id, name, card_barcode), ' +
   'loan:loans(id, due_at, returned_at, copy:copies(id, barcode, titles(title, author)))';
 
-export type FinesListQuery = {
-  page: number;
-  pageSize: number;
-  status: FineStatusFilter;
-};
-
-export type FinesListResult = {
-  rows: FineListItem[];
-  total: number;
-  error: string | null;
-};
+/** record_payment / void_payment are typed as Json; require the desk receipt shape. */
+function asFineActionPayload(data: unknown): FineActionPayload | null {
+  if (typeof data !== 'object' || data === null) return null;
+  if (!('payment' in data) || !('fine' in data)) return null;
+  const payload = data as FineActionPayload;
+  if (!payload.payment || !payload.fine) return null;
+  return payload;
+}
 
 @Service()
 export class FinesRepository {
-  private readonly supabase = inject(SUPABASE_CLIENT);
+  private readonly access = createPostgrestAccess(inject(SUPABASE_CLIENT));
 
-  async list(query: FinesListQuery): Promise<FinesListResult> {
-    const from = (query.page - 1) * query.pageSize;
-    const to = from + query.pageSize - 1;
+  async list(
+    query: ListQuery & { status: FineStatusFilter },
+  ): Promise<ListResult<FineListItem>> {
+    const { from, to } = pageToRange(query.page, query.pageSize);
 
-    let builder = this.supabase
+    let builder = this.access
       .from('fines')
       .select(LIST_SELECT, { count: 'exact' })
       .order('created_at', { ascending: false })
@@ -47,32 +52,45 @@ export class FinesRepository {
       builder = builder.eq('status', query.status);
     }
 
-    const { data, error, count } = await builder;
+    const result = toAccessResult(await builder);
+    if (!result.ok) {
+      return { rows: [], total: 0, error: result.error.message };
+    }
+
     return {
-      rows: (data as FineListItem[] | null) ?? [],
-      total: count ?? 0,
-      error: error?.message ?? null,
+      rows: (result.data as FineListItem[] | null) ?? [],
+      total: result.count ?? 0,
+      error: null,
     };
   }
 
   /** Fine history for the member-detail page — newest first, no pagination. */
   async listByMember(memberId: string): Promise<{ rows: FineListItem[]; error: string | null }> {
-    const { data, error } = await this.supabase
-      .from('fines')
-      .select(LIST_SELECT)
-      .eq('member_id', memberId)
-      .order('created_at', { ascending: false });
+    const result = toAccessResult(
+      await this.access
+        .from('fines')
+        .select(LIST_SELECT)
+        .eq('member_id', memberId)
+        .order('created_at', { ascending: false }),
+    );
 
-    return { rows: (data as FineListItem[] | null) ?? [], error: error?.message ?? null };
+    if (!result.ok) {
+      return { rows: [], error: result.error.message };
+    }
+
+    return { rows: (result.data as FineListItem[] | null) ?? [], error: null };
   }
 
   /** All-time desk totals, aggregated in SQL by the fines_summary view. */
   async summary(): Promise<{ row: FineSummary | null; error: string | null }> {
-    const { data, error } = await this.supabase.from('fines_summary').select('*').single();
-    if (error) {
-      return { row: null, error: error.message };
+    const result = toAccessResult(
+      await this.access.from('fines_summary').select('*').single(),
+    );
+    if (!result.ok) {
+      return { row: null, error: result.error.message };
     }
 
+    const data = result.data;
     return {
       row: {
         outstandingBalance: data?.outstanding_balance ?? 0,
@@ -84,54 +102,66 @@ export class FinesRepository {
   }
 
   async listPayments(fineId: string): Promise<{ rows: Payment[]; error: string | null }> {
-    const { data, error } = await this.supabase
-      .from('payments')
-      .select('*')
-      .eq('fine_id', fineId)
-      .order('created_at', { ascending: true });
+    const result = toAccessResult(
+      await this.access
+        .from('payments')
+        .select('*')
+        .eq('fine_id', fineId)
+        .order('created_at', { ascending: true }),
+    );
 
-    return { rows: data ?? [], error: error?.message ?? null };
+    if (!result.ok) {
+      return { rows: [], error: result.error.message };
+    }
+
+    return { rows: result.data ?? [], error: null };
   }
 
   async recordPayment(fineId: string, amount: number, method: string): Promise<PaymentResult> {
-    const { data, error } = await this.supabase.rpc('record_payment', {
+    const result = await this.access.rpc('record_payment', {
       p_fine_id: fineId,
       p_amount: amount,
       p_method: method,
     });
 
-    if (error) {
-      return { ok: false, error: mapPaymentError(error.message) };
+    if (!result.ok) {
+      return { ok: false, error: mapPaymentError(result.error.message) };
     }
 
-    const payload = data as FineActionPayload;
-    return { ok: true, receipt: { payment: payload.payment, fine: payload.fine } };
+    const payload = asFineActionPayload(result.data);
+    if (!payload) {
+      return { ok: false, error: 'unexpected' };
+    }
+    return { ok: true, receipt: payload };
   }
 
   async waiveFine(fineId: string, reason: string): Promise<WaiveResult> {
-    const { data, error } = await this.supabase.rpc('waive_fine', {
+    const result = await this.access.rpc('waive_fine', {
       p_fine_id: fineId,
       p_reason: reason,
     });
 
-    if (error) {
-      return { ok: false, error: mapWaiveError(error.message) };
+    if (!result.ok) {
+      return { ok: false, error: mapWaiveError(result.error.message) };
     }
 
-    return { ok: true, fine: data };
+    return { ok: true, fine: result.data };
   }
 
   async voidPayment(paymentId: string, reason: string): Promise<VoidResult> {
-    const { data, error } = await this.supabase.rpc('void_payment', {
+    const result = await this.access.rpc('void_payment', {
       p_payment_id: paymentId,
       p_reason: reason,
     });
 
-    if (error) {
-      return { ok: false, error: mapVoidError(error.message) };
+    if (!result.ok) {
+      return { ok: false, error: mapVoidError(result.error.message) };
     }
 
-    const payload = data as FineActionPayload;
+    const payload = asFineActionPayload(result.data);
+    if (!payload) {
+      return { ok: false, error: 'unexpected' };
+    }
     return { ok: true, payment: payload.payment, fine: payload.fine };
   }
 }
