@@ -24,6 +24,15 @@ const LIST_SELECT =
   '*, member:members(id, name, card_barcode), ' +
   'loan:loans(id, due_at, returned_at, copy:copies(id, barcode, titles(title, author)))';
 
+/** record_payment / void_payment are typed as Json; require the desk receipt shape. */
+function asFineActionPayload(data: unknown): FineActionPayload | null {
+  if (typeof data !== 'object' || data === null) return null;
+  if (!('payment' in data) || !('fine' in data)) return null;
+  const payload = data as FineActionPayload;
+  if (!payload.payment || !payload.fine) return null;
+  return payload;
+}
+
 @Service()
 export class FinesRepository {
   private readonly access = createPostgrestAccess(inject(SUPABASE_CLIENT));
@@ -119,7 +128,10 @@ export class FinesRepository {
       return { ok: false, error: mapPaymentError(result.error.message) };
     }
 
-    const payload = result.data as FineActionPayload;
+    const payload = asFineActionPayload(result.data);
+    if (!payload) {
+      return { ok: false, error: 'unexpected' };
+    }
     return { ok: true, receipt: payload };
   }
 
@@ -146,7 +158,10 @@ export class FinesRepository {
       return { ok: false, error: mapVoidError(result.error.message) };
     }
 
-    const payload = result.data as FineActionPayload;
+    const payload = asFineActionPayload(result.data);
+    if (!payload) {
+      return { ok: false, error: 'unexpected' };
+    }
     return { ok: true, payment: payload.payment, fine: payload.fine };
   }
 }

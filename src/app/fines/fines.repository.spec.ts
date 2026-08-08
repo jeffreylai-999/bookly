@@ -175,6 +175,19 @@ describe('FinesRepository', () => {
     expect(result).toEqual({ ok: false, error: 'payment_exceeds_balance' });
   });
 
+  it('recordPayment maps a null success payload to unexpected', async () => {
+    const client = createPostgrestClientMock({ rpc: { data: null, error: null } });
+
+    TestBed.configureTestingModule({
+      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(FinesRepository);
+    const result = await repo.recordPayment('f1', 4, 'cash');
+
+    expect(result).toEqual({ ok: false, error: 'unexpected' });
+  });
+
   it('waiveFine calls the RPC and returns the updated fine', async () => {
     const fine = { id: 'f1', status: 'waived', amount_paid: 2 };
     const client = createPostgrestClientMock({ rpc: { data: fine, error: null } });
@@ -242,5 +255,18 @@ describe('FinesRepository', () => {
     const result = await repo.voidPayment('p1', 'again');
 
     expect(result).toEqual({ ok: false, error: 'payment_already_voided' });
+  });
+
+  it('voidPayment maps a null success payload to unexpected', async () => {
+    const client = createPostgrestClientMock({ rpc: { data: null, error: null } });
+
+    TestBed.configureTestingModule({
+      providers: [FinesRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    });
+
+    const repo = TestBed.inject(FinesRepository);
+    const result = await repo.voidPayment('p1', 'wrong amount');
+
+    expect(result).toEqual({ ok: false, error: 'unexpected' });
   });
 });
