@@ -1,23 +1,24 @@
-import { Service, inject, signal } from '@angular/core';
+import { ApplicationRef, Service, computed, inject, resource, signal } from '@angular/core';
 
-import type { AuditListItem } from '../audit/audit.types';
 import { AuditRepository } from '../audit/audit.repository';
 import { AppSettingsService } from '../core/app-settings';
 import { CirculationRepository } from '../circulation/circulation.repository';
-import type {
-  CheckoutTrendPoint,
-  DueTodayLoan,
-  OverdueLoan,
-} from '../circulation/circulation.types';
 import { FinesRepository } from '../fines/fines.repository';
 import { HoldsRepository } from '../holds/holds.repository';
-import type { HoldListItem } from '../holds/holds.types';
 import {
   DUE_TODAY_LIMIT,
   HOLDS_READY_LIMIT,
   RECENT_ACTIVITY_LIMIT,
   TOP_OVERDUE_LIMIT,
 } from './overview.types';
+
+/** Loaders throw `Error`s, so the message is the section's own failure text. */
+function errorMessage(error: unknown): string | null {
+  if (error == null) {
+    return null;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
 
 /**
  * Composes reads across the aggregates each own repository already serves
@@ -32,133 +33,167 @@ export class OverviewStore {
   private readonly finesRepo = inject(FinesRepository);
   private readonly auditRepo = inject(AuditRepository);
   private readonly appSettings = inject(AppSettingsService);
+  private readonly appRef = inject(ApplicationRef);
 
-  private readonly loadingState = signal(false);
+  /** `undefined` keeps every read idle until the initial imperative load. */
+  private readonly initialization = signal<number | undefined>(undefined);
+  private readonly settingsLoading = signal(false);
+  private initializationNonce = 0;
 
-  private readonly holdsReadyState = signal<HoldListItem[]>([]);
-  private readonly holdsReadyErrorState = signal<string | null>(null);
+  private readonly holdsReadyResource = resource({
+    params: () => this.initialization(),
+    loader: async () => {
+      const result = await this.holdsRepo.listHolds('ready', {
+        page: 1,
+        pageSize: HOLDS_READY_LIMIT,
+      });
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      return result.rows;
+    },
+  });
 
-  private readonly dueTodayState = signal<DueTodayLoan[]>([]);
-  private readonly dueTodayErrorState = signal<string | null>(null);
-
-  private readonly topOverdueState = signal<OverdueLoan[]>([]);
-  private readonly topOverdueErrorState = signal<string | null>(null);
-  private readonly overdueCountState = signal(0);
-
-  private readonly holdsWaitingCountState = signal(0);
-  private readonly holdsWaitingCountErrorState = signal<string | null>(null);
-
-  private readonly finesOutstandingState = signal(0);
-  private readonly finesSummaryErrorState = signal<string | null>(null);
-
-  private readonly recentActivityState = signal<AuditListItem[]>([]);
-  private readonly recentActivityErrorState = signal<string | null>(null);
-
-  private readonly trendState = signal<CheckoutTrendPoint[]>([]);
-  private readonly trendErrorState = signal<string | null>(null);
-
-  readonly loading = this.loadingState.asReadonly();
-
-  readonly holdsReady = this.holdsReadyState.asReadonly();
-  readonly holdsReadyError = this.holdsReadyErrorState.asReadonly();
-
-  readonly dueToday = this.dueTodayState.asReadonly();
-  readonly dueTodayError = this.dueTodayErrorState.asReadonly();
-
-  readonly topOverdue = this.topOverdueState.asReadonly();
-  readonly topOverdueError = this.topOverdueErrorState.asReadonly();
-  readonly overdueCount = this.overdueCountState.asReadonly();
-
-  readonly holdsWaitingCount = this.holdsWaitingCountState.asReadonly();
-  readonly holdsWaitingCountError = this.holdsWaitingCountErrorState.asReadonly();
-
-  readonly finesOutstanding = this.finesOutstandingState.asReadonly();
-  readonly finesSummaryError = this.finesSummaryErrorState.asReadonly();
-  readonly currency = this.appSettings.currency;
-
-  readonly recentActivity = this.recentActivityState.asReadonly();
-  readonly recentActivityError = this.recentActivityErrorState.asReadonly();
-
-  readonly trend = this.trendState.asReadonly();
-  readonly trendError = this.trendErrorState.asReadonly();
-
-  async init(): Promise<void> {
-    this.loadingState.set(true);
-    try {
-      await Promise.all([
-        this.appSettings.load(),
-        this.loadHoldsReady(),
-        this.loadDueToday(),
-        this.loadTopOverdue(),
-        this.loadHoldsWaitingCount(),
-        this.loadFinesSummary(),
-        this.loadRecentActivity(),
-        this.loadTrend(),
-      ]);
-    } finally {
-      this.loadingState.set(false);
-    }
-  }
-
-  private async loadHoldsReady(): Promise<void> {
-    const result = await this.holdsRepo.listHolds('ready', {
-      page: 1,
-      pageSize: HOLDS_READY_LIMIT,
-    });
-    this.holdsReadyErrorState.set(result.error);
-    this.holdsReadyState.set(result.error ? [] : result.rows);
-  }
-
-  private async loadDueToday(): Promise<void> {
-    const result = await this.circulationRepo.listDueToday({
-      page: 1,
-      pageSize: DUE_TODAY_LIMIT,
-    });
-    this.dueTodayErrorState.set(result.error);
-    this.dueTodayState.set(result.error ? [] : result.rows);
-  }
+  private readonly dueTodayResource = resource({
+    params: () => this.initialization(),
+    loader: async () => {
+      const result = await this.circulationRepo.listDueToday({
+        page: 1,
+        pageSize: DUE_TODAY_LIMIT,
+      });
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      return result.rows;
+    },
+  });
 
   /** Same overdue_loans read backs both the list and the stat card's count
    *  (ADR-0002) — the two can never drift apart. */
-  private async loadTopOverdue(): Promise<void> {
-    const result = await this.circulationRepo.listOverdue({
-      page: 1,
-      pageSize: TOP_OVERDUE_LIMIT,
-    });
-    this.topOverdueErrorState.set(result.error);
-    if (result.error) {
-      this.topOverdueState.set([]);
-      return;
+  private readonly topOverdueResource = resource({
+    params: () => this.initialization(),
+    loader: async () => {
+      const result = await this.circulationRepo.listOverdue({
+        page: 1,
+        pageSize: TOP_OVERDUE_LIMIT,
+      });
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      return { rows: result.rows, total: result.total };
+    },
+  });
+
+  private readonly holdsWaitingCountResource = resource({
+    params: () => this.initialization(),
+    loader: async () => {
+      const result = await this.holdsRepo.countByStatus('waiting');
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      return result.count;
+    },
+  });
+
+  private readonly finesSummaryResource = resource({
+    params: () => this.initialization(),
+    loader: async () => {
+      const result = await this.finesRepo.summary();
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      return result.row;
+    },
+  });
+
+  private readonly recentActivityResource = resource({
+    params: () => this.initialization(),
+    loader: async () => {
+      const result = await this.auditRepo.listRecent(RECENT_ACTIVITY_LIMIT);
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      return result.rows;
+    },
+  });
+
+  private readonly trendResource = resource({
+    params: () => this.initialization(),
+    loader: async () => {
+      const result = await this.circulationRepo.getCheckoutTrend();
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      return result.rows;
+    },
+  });
+
+  readonly loading = computed(
+    () =>
+      this.settingsLoading() ||
+      this.holdsReadyResource.isLoading() ||
+      this.dueTodayResource.isLoading() ||
+      this.topOverdueResource.isLoading() ||
+      this.holdsWaitingCountResource.isLoading() ||
+      this.finesSummaryResource.isLoading() ||
+      this.recentActivityResource.isLoading() ||
+      this.trendResource.isLoading(),
+  );
+
+  readonly holdsReady = computed(() =>
+    this.holdsReadyResource.error() ? [] : (this.holdsReadyResource.value() ?? []),
+  );
+  readonly holdsReadyError = computed(() => errorMessage(this.holdsReadyResource.error()));
+
+  readonly dueToday = computed(() =>
+    this.dueTodayResource.error() ? [] : (this.dueTodayResource.value() ?? []),
+  );
+  readonly dueTodayError = computed(() => errorMessage(this.dueTodayResource.error()));
+
+  readonly topOverdue = computed(() =>
+    this.topOverdueResource.error() ? [] : (this.topOverdueResource.value()?.rows ?? []),
+  );
+  readonly topOverdueError = computed(() => errorMessage(this.topOverdueResource.error()));
+  readonly overdueCount = computed(() =>
+    this.topOverdueResource.error() ? 0 : (this.topOverdueResource.value()?.total ?? 0),
+  );
+
+  readonly holdsWaitingCount = computed(() =>
+    this.holdsWaitingCountResource.error() ? 0 : (this.holdsWaitingCountResource.value() ?? 0),
+  );
+  readonly holdsWaitingCountError = computed(() =>
+    errorMessage(this.holdsWaitingCountResource.error()),
+  );
+
+  readonly finesOutstanding = computed(() =>
+    this.finesSummaryResource.error()
+      ? 0
+      : (this.finesSummaryResource.value()?.outstandingBalance ?? 0),
+  );
+  readonly finesSummaryError = computed(() => errorMessage(this.finesSummaryResource.error()));
+  readonly currency = this.appSettings.currency;
+
+  readonly recentActivity = computed(() =>
+    this.recentActivityResource.error() ? [] : (this.recentActivityResource.value() ?? []),
+  );
+  readonly recentActivityError = computed(() => errorMessage(this.recentActivityResource.error()));
+
+  readonly trend = computed(() =>
+    this.trendResource.error() ? [] : (this.trendResource.value() ?? []),
+  );
+  readonly trendError = computed(() => errorMessage(this.trendResource.error()));
+
+  async init(): Promise<void> {
+    const generation = ++this.initializationNonce;
+    this.settingsLoading.set(true);
+    this.initialization.set(generation);
+    try {
+      // Bridges promise-based callers until they can read the resource signals directly.
+      await Promise.all([this.appSettings.load(), this.appRef.whenStable()]);
+    } finally {
+      if (generation === this.initializationNonce) {
+        this.settingsLoading.set(false);
+      }
     }
-    this.topOverdueState.set(result.rows);
-    this.overdueCountState.set(result.total);
-  }
-
-  private async loadHoldsWaitingCount(): Promise<void> {
-    const result = await this.holdsRepo.countByStatus('waiting');
-    this.holdsWaitingCountErrorState.set(result.error);
-    if (!result.error) {
-      this.holdsWaitingCountState.set(result.count);
-    }
-  }
-
-  private async loadFinesSummary(): Promise<void> {
-    const summary = await this.finesRepo.summary();
-    this.finesSummaryErrorState.set(summary.error);
-    if (!summary.error && summary.row) {
-      this.finesOutstandingState.set(summary.row.outstandingBalance);
-    }
-  }
-
-  private async loadRecentActivity(): Promise<void> {
-    const result = await this.auditRepo.listRecent(RECENT_ACTIVITY_LIMIT);
-    this.recentActivityErrorState.set(result.error);
-    this.recentActivityState.set(result.error ? [] : result.rows);
-  }
-
-  private async loadTrend(): Promise<void> {
-    const result = await this.circulationRepo.getCheckoutTrend();
-    this.trendErrorState.set(result.error);
-    this.trendState.set(result.error ? [] : result.rows);
   }
 }

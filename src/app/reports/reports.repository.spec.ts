@@ -3,17 +3,43 @@ import { TestBed } from '@angular/core/testing';
 import { SUPABASE_CLIENT } from '../core/supabase';
 import { ReportsRepository } from './reports.repository';
 
+function setup(rpc: (fn: string, args?: unknown) => Promise<unknown>) {
+  TestBed.configureTestingModule({
+    providers: [ReportsRepository, { provide: SUPABASE_CLIENT, useValue: { rpc } }],
+  });
+  return TestBed.inject(ReportsRepository);
+}
+
+const ROWS: Record<string, unknown[]> = {
+  report_overdue_aging: [{ bucket: '1-7', bucket_order: 1, loan_count: 2 }],
+  report_dead_stock: [
+    { title_id: 't1', title: 'Dune', author: 'Herbert', genre: 'Sci-fi', lendable_copies: 1 },
+  ],
+  report_high_demand: [
+    { title_id: 't2', title: 'Beta', author: 'B', checkout_count: 3, waiting_holds: 1 },
+  ],
+  report_fine_collection: [{ report_date: '2026-08-01', collected: 5, incurred: 10 }],
+  report_new_member_growth: [{ report_date: '2026-08-01', member_count: 2 }],
+  report_peak_hours: [{ hour_of_day: 9, checkout_count: 4 }],
+  report_genre_breakdown: [{ genre: 'Sci-fi', checkout_count: 6 }],
+};
+
 describe('ReportsRepository', () => {
-  it('loadAll calls every report RPC with the selected range (overdue aging excepted)', async () => {
+  it('reads each metric from its own RPC, passing the range to the range-scoped ones', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    const repo = setup(rpc);
 
-    TestBed.configureTestingModule({
-      providers: [ReportsRepository, { provide: SUPABASE_CLIENT, useValue: { rpc } }],
-    });
+    await Promise.all([
+      repo.loadOverdueAging(),
+      repo.loadDeadStock(7),
+      repo.loadHighDemand(7),
+      repo.loadFineCollection(7),
+      repo.loadNewMemberGrowth(7),
+      repo.loadPeakHours(7),
+      repo.loadGenreBreakdown(7),
+    ]);
 
-    const repo = TestBed.inject(ReportsRepository);
-    await repo.loadAll(7);
-
+    // Overdue aging is a present-state snapshot, so it takes no range (spec §7).
     expect(rpc).toHaveBeenCalledWith('report_overdue_aging');
     expect(rpc).toHaveBeenCalledWith('report_dead_stock', { p_days: 7 });
     expect(rpc).toHaveBeenCalledWith('report_high_demand', { p_days: 7 });
@@ -23,56 +49,39 @@ describe('ReportsRepository', () => {
     expect(rpc).toHaveBeenCalledWith('report_genre_breakdown', { p_days: 7 });
   });
 
-  it('loadAll maps each RPC payload onto its named field', async () => {
-    const rpc = vi.fn((fn: string) => {
-      const rows: Record<string, unknown[]> = {
-        report_overdue_aging: [{ bucket: '1-7', bucket_order: 1, loan_count: 2 }],
-        report_dead_stock: [
-          { title_id: 't1', title: 'Dune', author: 'Herbert', genre: 'Sci-fi', lendable_copies: 1 },
-        ],
-        report_high_demand: [
-          { title_id: 't2', title: 'Beta', author: 'B', checkout_count: 3, waiting_holds: 1 },
-        ],
-        report_fine_collection: [{ report_date: '2026-08-01', collected: 5, incurred: 10 }],
-        report_new_member_growth: [{ report_date: '2026-08-01', member_count: 2 }],
-        report_peak_hours: [{ hour_of_day: 9, checkout_count: 4 }],
-        report_genre_breakdown: [{ genre: 'Sci-fi', checkout_count: 6 }],
-      };
-      return Promise.resolve({ data: rows[fn], error: null });
-    });
+  it('returns the typed rows of each metric', async () => {
+    const rpc = vi.fn((fn: string) => Promise.resolve({ data: ROWS[fn], error: null }));
+    const repo = setup(rpc);
 
-    TestBed.configureTestingModule({
-      providers: [ReportsRepository, { provide: SUPABASE_CLIENT, useValue: { rpc } }],
-    });
-
-    const repo = TestBed.inject(ReportsRepository);
-    const result = await repo.loadAll(14);
-
-    expect(result.error).toBeNull();
-    expect(result.data?.overdueAging).toEqual([{ bucket: '1-7', bucket_order: 1, loan_count: 2 }]);
-    expect(result.data?.deadStock[0]?.title).toBe('Dune');
-    expect(result.data?.highDemand[0]?.title).toBe('Beta');
-    expect(result.data?.fineCollection[0]?.collected).toBe(5);
-    expect(result.data?.newMemberGrowth[0]?.member_count).toBe(2);
-    expect(result.data?.peakHours[0]?.hour_of_day).toBe(9);
-    expect(result.data?.genreBreakdown[0]?.genre).toBe('Sci-fi');
+    expect((await repo.loadOverdueAging()).rows[0]?.loan_count).toBe(2);
+    expect((await repo.loadDeadStock(14)).rows[0]?.title).toBe('Dune');
+    expect((await repo.loadHighDemand(14)).rows[0]?.title).toBe('Beta');
+    expect((await repo.loadFineCollection(14)).rows[0]?.collected).toBe(5);
+    expect((await repo.loadNewMemberGrowth(14)).rows[0]?.member_count).toBe(2);
+    expect((await repo.loadPeakHours(14)).rows[0]?.hour_of_day).toBe(9);
+    expect((await repo.loadGenreBreakdown(14)).rows[0]?.genre).toBe('Sci-fi');
   });
 
-  it('loadAll surfaces the first RPC error and drops all data', async () => {
+  it('keeps a failed metric to itself so the other metrics still return their rows', async () => {
     const rpc = vi.fn((fn: string) => {
       if (fn === 'report_high_demand') {
         return Promise.resolve({ data: null, error: { message: 'boom' } });
       }
-      return Promise.resolve({ data: [], error: null });
+      return Promise.resolve({ data: ROWS[fn], error: null });
     });
+    const repo = setup(rpc);
 
-    TestBed.configureTestingModule({
-      providers: [ReportsRepository, { provide: SUPABASE_CLIENT, useValue: { rpc } }],
+    expect(await repo.loadHighDemand(30)).toEqual({ rows: [], error: 'boom' });
+    expect(await repo.loadGenreBreakdown(30)).toEqual({
+      rows: [{ genre: 'Sci-fi', checkout_count: 6 }],
+      error: null,
     });
+  });
 
-    const repo = TestBed.inject(ReportsRepository);
-    const result = await repo.loadAll(30);
+  it('treats a null payload as no rows', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: null });
+    const repo = setup(rpc);
 
-    expect(result).toEqual({ data: null, error: 'boom' });
+    expect(await repo.loadDeadStock(14)).toEqual({ rows: [], error: null });
   });
 });

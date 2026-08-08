@@ -11,6 +11,14 @@ import { MemberDetailStore } from './member-detail.store';
 import { MembersRepository } from './members.repository';
 import type { MemberListItem } from './members.types';
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve: (value: T) => resolve(value) };
+}
+
 function memberRow(overrides: Partial<MemberListItem> = {}): MemberListItem {
   return {
     id: 'm1',
@@ -194,11 +202,44 @@ describe('MemberDetailStore', () => {
     expect(store.holds()).toEqual([]);
     expect(store.fines()).toEqual([]);
     expect(store.money()).toBeNull();
+    // Cleared, not settled: every panel reads as loading in the same tick, so
+    // the page shows placeholders instead of claiming an empty member.
+    expect(store.memberLoading()).toBe(true);
+    expect(store.loansLoading()).toBe(true);
+    expect(store.holdsLoading()).toBe(true);
+    expect(store.finesLoading()).toBe(true);
+    expect(store.moneyLoading()).toBe(true);
 
+    await vi.waitFor(() => {
+      expect(getById).toHaveBeenCalledTimes(2);
+    });
+    expect(getById).toHaveBeenLastCalledWith('m2');
     resolveGetById({ row: member2, error: null });
     await secondInit;
 
     expect(store.member()).toEqual(member2);
+  });
+
+  it('keeps the newer member visible when a prior navigation settles afterwards', async () => {
+    const firstMember = deferred<{ row: MemberListItem | null; error: string | null }>();
+    const secondMember = memberRow({ id: 'm2', name: 'Grace Hopper' });
+    const getById = vi.fn().mockImplementation((memberId: string) => {
+      if (memberId === 'm1') return firstMember.promise;
+      return Promise.resolve({ row: secondMember, error: null });
+    });
+    const store = setup({ members: { getById } });
+
+    const firstInit = store.init('m1');
+    await vi.waitFor(() => {
+      expect(getById).toHaveBeenCalledWith('m1');
+    });
+    await store.init('m2');
+
+    firstMember.resolve({ row: memberRow(), error: null });
+    await firstInit;
+
+    expect(store.member()).toEqual(secondMember);
+    expect(store.loans()).toEqual([]);
   });
 
   it('flags a missing member without treating it as a load error', async () => {
@@ -239,6 +280,34 @@ describe('MemberDetailStore', () => {
     expect(store.finesError()).toBe('fines_down');
   });
 
+  it('keeps money loading and errors independent from other panels', async () => {
+    const money = deferred<{
+      row: { balance: number; projected: number } | null;
+      error: string | null;
+    }>();
+    const store = setup({
+      circulation: {
+        getMemberMoney: vi.fn().mockReturnValue(money.promise),
+      },
+      holds: { listByMember: vi.fn().mockResolvedValue({ rows: [], error: 'holds_down' }) },
+    });
+
+    const initializing = store.init('m1');
+    await vi.waitFor(() => {
+      expect(store.moneyLoading()).toBe(true);
+    });
+    await vi.waitFor(() => {
+      expect(store.holdsError()).toBe('holds_down');
+      expect(store.loansLoading()).toBe(false);
+    });
+
+    money.resolve({ row: null, error: 'money_down' });
+    await initializing;
+
+    expect(store.moneyLoading()).toBe(false);
+    expect(store.moneyError()).toBe('money_down');
+  });
+
   it('changes member status through the RPC and reloads the member', async () => {
     const getById = vi
       .fn()
@@ -255,6 +324,85 @@ describe('MemberDetailStore', () => {
     expect(setStatus).toHaveBeenCalledWith('m1', 'suspended');
     expect(result.error).toBeNull();
     expect(store.member()?.status).toBe('suspended');
+  });
+
+  it('keeps the current member visible while a status refresh is pending', async () => {
+    const refreshedMember = deferred<{ row: MemberListItem; error: null }>();
+    const currentMember = memberRow();
+    const getById = vi
+      .fn()
+      .mockResolvedValueOnce({ row: currentMember, error: null })
+      .mockReturnValueOnce(refreshedMember.promise);
+    const store = setup({ members: { getById } });
+    await store.init('m1');
+
+    const changingStatus = store.setMemberStatus('suspended');
+    await vi.waitFor(() => {
+      expect(getById).toHaveBeenCalledTimes(2);
+    });
+
+    expect(store.member()).toEqual(currentMember);
+    expect(store.memberLoading()).toBe(true);
+    refreshedMember.resolve({ row: memberRow({ status: 'suspended' }), error: null });
+    await changingStatus;
+
+    expect(store.member()?.status).toBe('suspended');
+  });
+
+  it('refreshes the member after a status change that lands while the first read is in flight', async () => {
+    // Suspend is clickable from the member header as soon as it renders, so a
+    // status change can land while the member read itself is still running.
+    // `reload()` is a documented no-op there, which would leave the old status
+    // on screen until navigation.
+    const firstMember = deferred<{ row: MemberListItem | null; error: string | null }>();
+    const getById = vi
+      .fn()
+      .mockReturnValueOnce(firstMember.promise)
+      .mockResolvedValueOnce({ row: memberRow({ status: 'suspended' }), error: null });
+    const store = setup({ members: { getById } });
+
+    const initializing = store.init('m1');
+    await vi.waitFor(() => {
+      expect(getById).toHaveBeenCalledTimes(1);
+      expect(store.memberLoading()).toBe(true);
+    });
+
+    const changingStatus = store.setMemberStatus('suspended');
+    await vi.waitFor(() => {
+      expect(getById).toHaveBeenCalledTimes(2);
+    });
+    // The superseded first read still lands, and must not win.
+    firstMember.resolve({ row: memberRow({ status: 'active' }), error: null });
+    const result = await changingStatus;
+    await initializing;
+
+    expect(result.error).toBeNull();
+    expect(store.member()?.status).toBe('suspended');
+  });
+
+  it('does not refresh the former member after status changes during navigation', async () => {
+    const setStatusResult = deferred<{ row: MemberListItem; error: null }>();
+    const getById = vi
+      .fn()
+      .mockImplementation((memberId: string) =>
+        Promise.resolve({ row: memberRow({ id: memberId }), error: null }),
+      );
+    const setStatus = vi.fn().mockReturnValue(setStatusResult.promise);
+    const store = setup({ members: { getById, setStatus } });
+    await store.init('m1');
+
+    const changingStatus = store.setMemberStatus('suspended');
+    await vi.waitFor(() => {
+      expect(setStatus).toHaveBeenCalledWith('m1', 'suspended');
+    });
+    await store.init('m2');
+    getById.mockClear();
+
+    setStatusResult.resolve({ row: memberRow({ status: 'suspended' }), error: null });
+    await changingStatus;
+
+    expect(getById).not.toHaveBeenCalled();
+    expect(store.member()?.id).toBe('m2');
   });
 
   it('renews a loan and refreshes loans and money', async () => {
@@ -280,6 +428,118 @@ describe('MemberDetailStore', () => {
     expect(store.loans()).toEqual([renewedLoan]);
     expect(getMemberMoney).toHaveBeenCalled();
     expect(store.renewingId()).toBeNull();
+  });
+
+  it('keeps current loans and money visible while a renewal refresh is pending', async () => {
+    const refreshedLoans = deferred<{ rows: LoanListItem[]; error: null }>();
+    const refreshedMoney = deferred<{
+      row: { balance: number; projected: number };
+      error: null;
+    }>();
+    const currentLoan = loanRow();
+    const currentMoney = { balance: 5, projected: 1.5 };
+    const listActiveLoansByMember = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [currentLoan], error: null })
+      .mockReturnValueOnce(refreshedLoans.promise);
+    const getMemberMoney = vi
+      .fn()
+      .mockResolvedValueOnce({ row: currentMoney, error: null })
+      .mockReturnValueOnce(refreshedMoney.promise);
+    const store = setup({
+      circulation: {
+        listActiveLoansByMember,
+        getMemberMoney,
+        renew: vi.fn().mockResolvedValue({ ok: true, loan: loanRow() }),
+      },
+    });
+    await store.init('m1');
+
+    const renewing = store.renew(currentLoan);
+    await vi.waitFor(() => {
+      expect(listActiveLoansByMember).toHaveBeenCalledTimes(2);
+      expect(getMemberMoney).toHaveBeenCalledTimes(2);
+    });
+
+    expect(store.loans()).toEqual([currentLoan]);
+    expect(store.money()).toEqual(currentMoney);
+    expect(store.loansLoading()).toBe(true);
+    expect(store.moneyLoading()).toBe(true);
+    refreshedLoans.resolve({ rows: [loanRow({ due_at: '2026-08-12T00:00:00Z' })], error: null });
+    refreshedMoney.resolve({ row: { balance: 5, projected: 0 }, error: null });
+    await renewing;
+
+    expect(store.loans()[0]?.due_at).toBe('2026-08-12T00:00:00Z');
+    expect(store.money()).toEqual({ balance: 5, projected: 0 });
+  });
+
+  it('refreshes money after a renewal that lands while the first money read is in flight', async () => {
+    // getMemberMoney is the slowest member read (two sequential round trips)
+    // and Renew is clickable as soon as loans render, so this window is
+    // reachable. `reload()` is a no-op while a resource is loading, which
+    // would strand the pre-renew balance and projected fine on screen.
+    const firstMoney = deferred<{
+      row: { balance: number; projected: number };
+      error: null;
+    }>();
+    const getMemberMoney = vi
+      .fn()
+      .mockReturnValueOnce(firstMoney.promise)
+      .mockResolvedValueOnce({ row: { balance: 5, projected: 0 }, error: null });
+    const listActiveLoansByMember = vi.fn().mockResolvedValue({ rows: [loanRow()], error: null });
+    const renew = vi.fn().mockResolvedValue({ ok: true, loan: loanRow() });
+    const store = setup({ circulation: { listActiveLoansByMember, getMemberMoney, renew } });
+
+    const initializing = store.init('m1');
+    await vi.waitFor(() => {
+      expect(store.loansLoading()).toBe(false);
+      expect(store.moneyLoading()).toBe(true);
+    });
+
+    const renewing = store.renew(loanRow());
+    await vi.waitFor(() => {
+      expect(getMemberMoney).toHaveBeenCalledTimes(2);
+    });
+    // The superseded first read still lands, and must not win.
+    firstMoney.resolve({ row: { balance: 5, projected: 1.5 }, error: null });
+    await Promise.all([initializing, renewing]);
+
+    expect(store.money()).toEqual({ balance: 5, projected: 0 });
+  });
+
+  it('does not refresh the former member after renewal completes during navigation', async () => {
+    const renewal = deferred<{ ok: true; loan: LoanListItem }>();
+    const listActiveLoansByMember = vi.fn().mockResolvedValue({ rows: [], error: null });
+    const getMemberMoney = vi
+      .fn()
+      .mockResolvedValue({ row: { balance: 0, projected: 0 }, error: null });
+    const renew = vi.fn().mockReturnValue(renewal.promise);
+    const store = setup({
+      members: {
+        getById: vi
+          .fn()
+          .mockImplementation((memberId: string) =>
+            Promise.resolve({ row: memberRow({ id: memberId }), error: null }),
+          ),
+      },
+      circulation: { listActiveLoansByMember, getMemberMoney, renew },
+    });
+    await store.init('m1');
+
+    const renewing = store.renew(loanRow());
+    await vi.waitFor(() => {
+      expect(renew).toHaveBeenCalledWith('l1');
+    });
+    await store.init('m2');
+    listActiveLoansByMember.mockClear();
+    getMemberMoney.mockClear();
+
+    renewal.resolve({ ok: true, loan: loanRow() });
+    await renewing;
+
+    expect(listActiveLoansByMember).not.toHaveBeenCalled();
+    expect(getMemberMoney).not.toHaveBeenCalled();
+    expect(store.member()?.id).toBe('m2');
   });
 
   it('does not reload after a rejected renewal', async () => {

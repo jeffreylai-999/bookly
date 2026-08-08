@@ -898,8 +898,17 @@
     "rangeLabel": "Report range",
     "rangeOption": "{{days}} days",
     "export": "Export CSV",
+    "loading": "Loading report",
+    "refreshing": "Updating reports for the new range",
     "errors": {
-      "loadFailed": "Couldn't load reports. Check your connection and try again."
+      "loadFailed": "Couldn't load reports. Check your connection and try again.",
+      "overdueAging": "Couldn't load overdue aging. Check your connection and try again.",
+      "deadStock": "Couldn't load dead stock. Check your connection and try again.",
+      "highDemand": "Couldn't load high demand. Check your connection and try again.",
+      "fineCollection": "Couldn't load fine collection. Check your connection and try again.",
+      "newMemberGrowth": "Couldn't load new member growth. Check your connection and try again.",
+      "peakHours": "Couldn't load peak hours. Check your connection and try again.",
+      "genreBreakdown": "Couldn't load genre breakdown. Check your connection and try again."
     },
     "overdueAging": {
       "title": "Overdue aging",

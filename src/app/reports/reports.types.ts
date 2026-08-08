@@ -55,13 +55,3 @@ export type GenreBreakdownRow = {
   genre: string;
   checkout_count: number;
 };
-
-export type ReportsData = {
-  overdueAging: OverdueAgingRow[];
-  deadStock: DeadStockRow[];
-  highDemand: HighDemandRow[];
-  fineCollection: FineCollectionRow[];
-  newMemberGrowth: NewMemberGrowthRow[];
-  peakHours: PeakHoursRow[];
-  genreBreakdown: GenreBreakdownRow[];
-};
