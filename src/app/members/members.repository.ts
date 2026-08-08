@@ -1,5 +1,11 @@
 import { Service, inject } from '@angular/core';
 
+import { listMemberTypes } from '../core/member-types';
+import {
+  createPostgrestAccess,
+  pageToRange,
+  toAccessResult,
+} from '../core/postgrest';
 import {
   SUPABASE_CLIENT,
   type MembersClientInsert,
@@ -18,13 +24,12 @@ const LIST_SELECT = '*, member_type:member_types(id, name)';
 
 @Service()
 export class MembersRepository {
-  private readonly supabase = inject(SUPABASE_CLIENT);
+  private readonly access = createPostgrestAccess(inject(SUPABASE_CLIENT));
 
   async list(query: MembersListQuery): Promise<MembersListResult & { error: string | null }> {
-    const from = (query.page - 1) * query.pageSize;
-    const to = from + query.pageSize - 1;
+    const { from, to } = pageToRange(query.page, query.pageSize);
 
-    let builder = this.supabase
+    let builder = this.access
       .from('members')
       .select(LIST_SELECT, { count: 'exact' })
       .order('name', { ascending: true })
@@ -38,63 +43,67 @@ export class MembersRepository {
       builder = builder.eq('status', query.status);
     }
 
-    const { data, error, count } = await builder;
+    const result = toAccessResult(await builder);
+    if (!result.ok) {
+      return { rows: [], total: 0, error: result.error.message };
+    }
     return {
-      rows: (data as MemberListItem[] | null) ?? [],
-      total: count ?? 0,
-      error: error?.message ?? null,
+      rows: (result.data ?? []) as MemberListItem[],
+      total: result.count ?? 0,
+      error: null,
     };
   }
 
   async getById(id: string): Promise<{ row: MemberListItem | null; error: string | null }> {
-    const { data, error } = await this.supabase
-      .from('members')
-      .select(LIST_SELECT)
-      .eq('id', id)
-      .maybeSingle();
-    return { row: (data as MemberListItem | null) ?? null, error: error?.message ?? null };
+    const result = toAccessResult(
+      await this.access.from('members').select(LIST_SELECT).eq('id', id).maybeSingle(),
+    );
+    if (!result.ok) {
+      return { row: null, error: result.error.message };
+    }
+    return { row: (result.data as MemberListItem | null) ?? null, error: null };
   }
 
   async listMemberTypes(): Promise<{ rows: MemberType[]; error: string | null }> {
-    const { data, error } = await this.supabase
-      .from('member_types')
-      .select('*')
-      .order('name', { ascending: true });
-    return { rows: data ?? [], error: error?.message ?? null };
+    return listMemberTypes(this.access);
   }
 
   async create(
     input: MembersClientInsert,
   ): Promise<{ row: MemberListItem | null; error: string | null }> {
-    const { data, error } = await this.supabase
-      .from('members')
-      .insert(input)
-      .select(LIST_SELECT)
-      .single();
-    return { row: (data as MemberListItem | null) ?? null, error: error?.message ?? null };
+    const result = toAccessResult(
+      await this.access.from('members').insert(input).select(LIST_SELECT).single(),
+    );
+    if (!result.ok) {
+      return { row: null, error: result.error.message };
+    }
+    return { row: (result.data as MemberListItem | null) ?? null, error: null };
   }
 
   async update(
     id: string,
     patch: MembersClientUpdate,
   ): Promise<{ row: MemberListItem | null; error: string | null }> {
-    const { data, error } = await this.supabase
-      .from('members')
-      .update(patch)
-      .eq('id', id)
-      .select(LIST_SELECT)
-      .single();
-    return { row: (data as MemberListItem | null) ?? null, error: error?.message ?? null };
+    const result = toAccessResult(
+      await this.access.from('members').update(patch).eq('id', id).select(LIST_SELECT).single(),
+    );
+    if (!result.ok) {
+      return { row: null, error: result.error.message };
+    }
+    return { row: (result.data as MemberListItem | null) ?? null, error: null };
   }
 
   async setStatus(
     memberId: string,
     status: MemberStatus,
   ): Promise<{ row: Member | null; error: string | null }> {
-    const { data, error } = await this.supabase.rpc('set_member_status', {
+    const result = await this.access.rpc('set_member_status', {
       p_member_id: memberId,
       p_status: status,
     });
-    return { row: data ?? null, error: error?.message ?? null };
+    if (!result.ok) {
+      return { row: null, error: result.error.message };
+    }
+    return { row: result.data ?? null, error: null };
   }
 }

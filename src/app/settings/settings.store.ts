@@ -3,7 +3,7 @@ import { Service, inject, signal } from '@angular/core';
 import { AppSettingsService } from '../core/app-settings';
 import { AuditService } from '../core/audit';
 import type { MemberTypesClientInsert, MemberTypesClientUpdate } from '../core/supabase';
-import { SettingsRepository, mapWriteError } from './settings.repository';
+import { SettingsRepository } from './settings.repository';
 import {
   APP_SETTINGS_AUDIT_ID,
   type AppSettings,
@@ -74,7 +74,7 @@ export class SettingsStore {
         ? await this.repo.updateMemberType(id, fields satisfies MemberTypesClientUpdate)
         : await this.repo.createMemberType(fields satisfies MemberTypesClientInsert);
       if (saved.error || !saved.row) {
-        return { error: mapWriteError(saved) };
+        return { error: saved.error ?? 'save_failed' };
       }
       const auditResult = await this.audit.log({
         action: id ? 'member_type.update' : 'member_type.create',
@@ -98,7 +98,7 @@ export class SettingsStore {
       const row = this.memberTypesState().find((type) => type.id === id);
       const deleted = await this.repo.deleteMemberType(id);
       if (deleted.error) {
-        return { error: mapWriteError(deleted) };
+        return { error: deleted.error };
       }
       const auditResult = await this.audit.log({
         action: 'member_type.delete',
@@ -134,7 +134,7 @@ export class SettingsStore {
         default_report_range_days: Number(form.defaultReportRangeDays),
       });
       if (saved.error || !saved.row) {
-        return { error: mapWriteError(saved) };
+        return { error: saved.error ?? 'save_failed' };
       }
       const auditResult = await this.audit.log({
         action: 'settings.update',
