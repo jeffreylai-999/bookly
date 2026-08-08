@@ -1,51 +1,23 @@
 import { TestBed } from '@angular/core/testing';
 
+import {
+  createPostgrestClientMock,
+  createQueryBuilderMock,
+} from '../core/postgrest/postgrest-access.testing';
 import { SUPABASE_CLIENT } from '../core/supabase';
 import { MembersRepository } from './members.repository';
 
-function createQueryBuilder(result: {
-  data: unknown;
-  error: { message: string } | null;
-  count?: number | null;
-}) {
-  const builder = {
-    select: vi.fn(),
-    insert: vi.fn(),
-    update: vi.fn(),
-    eq: vi.fn(),
-    ilike: vi.fn(),
-    order: vi.fn(),
-    range: vi.fn(),
-    single: vi.fn(),
-    maybeSingle: vi.fn(),
-    then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve),
-  };
-  builder.select.mockReturnValue(builder);
-  builder.insert.mockReturnValue(builder);
-  builder.update.mockReturnValue(builder);
-  builder.eq.mockReturnValue(builder);
-  builder.ilike.mockReturnValue(builder);
-  builder.order.mockReturnValue(builder);
-  builder.range.mockReturnValue(builder);
-  builder.single.mockReturnValue(builder);
-  builder.maybeSingle.mockReturnValue(builder);
-  return builder;
-}
-
 describe('MembersRepository', () => {
   it('lists members with server-side pagination, name search, and status filter', async () => {
-    const builder = createQueryBuilder({
+    const builder = createQueryBuilderMock({
       data: [],
       error: null,
       count: 0,
     });
-    const from = vi.fn().mockReturnValue(builder);
+    const client = createPostgrestClientMock({ from: builder });
 
     await TestBed.configureTestingModule({
-      providers: [
-        MembersRepository,
-        { provide: SUPABASE_CLIENT, useValue: { from, rpc: vi.fn() } },
-      ],
+      providers: [MembersRepository, { provide: SUPABASE_CLIENT, useValue: client }],
     }).compileComponents();
 
     const repo = TestBed.inject(MembersRepository);
@@ -56,7 +28,7 @@ describe('MembersRepository', () => {
       status: 'active',
     });
 
-    expect(from).toHaveBeenCalledWith('members');
+    expect(client.from).toHaveBeenCalledWith('members');
     expect(builder.select).toHaveBeenCalledWith('*, member_type:member_types(id, name)', {
       count: 'exact',
     });
@@ -66,7 +38,7 @@ describe('MembersRepository', () => {
   });
 
   it('creates a member without sending status (defaults to active server-side)', async () => {
-    const builder = createQueryBuilder({
+    const builder = createQueryBuilderMock({
       data: {
         id: 'm1',
         name: 'Ada',
@@ -75,13 +47,10 @@ describe('MembersRepository', () => {
       },
       error: null,
     });
-    const from = vi.fn().mockReturnValue(builder);
+    const client = createPostgrestClientMock({ from: builder });
 
     await TestBed.configureTestingModule({
-      providers: [
-        MembersRepository,
-        { provide: SUPABASE_CLIENT, useValue: { from, rpc: vi.fn() } },
-      ],
+      providers: [MembersRepository, { provide: SUPABASE_CLIENT, useValue: client }],
     }).compileComponents();
 
     const repo = TestBed.inject(MembersRepository);
@@ -106,7 +75,7 @@ describe('MembersRepository', () => {
   });
 
   it('fetches a single member by id with member type joined', async () => {
-    const builder = createQueryBuilder({
+    const builder = createQueryBuilderMock({
       data: {
         id: 'm1',
         name: 'Ada',
@@ -115,19 +84,16 @@ describe('MembersRepository', () => {
       },
       error: null,
     });
-    const from = vi.fn().mockReturnValue(builder);
+    const client = createPostgrestClientMock({ from: builder });
 
     await TestBed.configureTestingModule({
-      providers: [
-        MembersRepository,
-        { provide: SUPABASE_CLIENT, useValue: { from, rpc: vi.fn() } },
-      ],
+      providers: [MembersRepository, { provide: SUPABASE_CLIENT, useValue: client }],
     }).compileComponents();
 
     const repo = TestBed.inject(MembersRepository);
     const result = await repo.getById('m1');
 
-    expect(from).toHaveBeenCalledWith('members');
+    expect(client.from).toHaveBeenCalledWith('members');
     expect(builder.select).toHaveBeenCalledWith('*, member_type:member_types(id, name)');
     expect(builder.eq).toHaveBeenCalledWith('id', 'm1');
     expect(result.error).toBeNull();
@@ -135,14 +101,11 @@ describe('MembersRepository', () => {
   });
 
   it('returns a null row when no member matches the id', async () => {
-    const builder = createQueryBuilder({ data: null, error: null });
-    const from = vi.fn().mockReturnValue(builder);
+    const builder = createQueryBuilderMock({ data: null, error: null });
+    const client = createPostgrestClientMock({ from: builder });
 
     await TestBed.configureTestingModule({
-      providers: [
-        MembersRepository,
-        { provide: SUPABASE_CLIENT, useValue: { from, rpc: vi.fn() } },
-      ],
+      providers: [MembersRepository, { provide: SUPABASE_CLIENT, useValue: client }],
     }).compileComponents();
 
     const repo = TestBed.inject(MembersRepository);
@@ -151,23 +114,42 @@ describe('MembersRepository', () => {
     expect(result).toEqual({ row: null, error: null });
   });
 
-  it('changes status only through set_member_status RPC', async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: { id: 'm1', status: 'suspended' },
+  it('lists member types through the shared ordered read', async () => {
+    const builder = createQueryBuilderMock({
+      data: [{ id: 't1', name: 'Adult' }],
       error: null,
+    });
+    const client = createPostgrestClientMock({ from: builder });
+
+    await TestBed.configureTestingModule({
+      providers: [MembersRepository, { provide: SUPABASE_CLIENT, useValue: client }],
+    }).compileComponents();
+
+    const repo = TestBed.inject(MembersRepository);
+    const result = await repo.listMemberTypes();
+
+    expect(client.from).toHaveBeenCalledWith('member_types');
+    expect(builder.order).toHaveBeenCalledWith('name', { ascending: true });
+    expect(result.error).toBeNull();
+    expect(result.rows).toHaveLength(1);
+  });
+
+  it('changes status only through set_member_status RPC', async () => {
+    const client = createPostgrestClientMock({
+      rpc: {
+        data: { id: 'm1', status: 'suspended' },
+        error: null,
+      },
     });
 
     await TestBed.configureTestingModule({
-      providers: [
-        MembersRepository,
-        { provide: SUPABASE_CLIENT, useValue: { from: vi.fn(), rpc } },
-      ],
+      providers: [MembersRepository, { provide: SUPABASE_CLIENT, useValue: client }],
     }).compileComponents();
 
     const repo = TestBed.inject(MembersRepository);
     await repo.setStatus('m1', 'suspended');
 
-    expect(rpc).toHaveBeenCalledWith('set_member_status', {
+    expect(client.rpc).toHaveBeenCalledWith('set_member_status', {
       p_member_id: 'm1',
       p_status: 'suspended',
     });

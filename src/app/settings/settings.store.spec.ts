@@ -66,12 +66,10 @@ function repoFake(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     listMemberTypes: vi.fn().mockResolvedValue({ rows: [sampleType], error: null }),
     getAppSettings: vi.fn().mockResolvedValue({ row: sampleSettings, error: null }),
-    createMemberType: vi.fn().mockResolvedValue({ row: sampleType, error: null, code: null }),
-    updateMemberType: vi.fn().mockResolvedValue({ row: sampleType, error: null, code: null }),
-    deleteMemberType: vi.fn().mockResolvedValue({ error: null, code: null }),
-    updateAppSettings: vi
-      .fn()
-      .mockResolvedValue({ row: sampleSettings, error: null, code: null }),
+    createMemberType: vi.fn().mockResolvedValue({ row: sampleType, error: null }),
+    updateMemberType: vi.fn().mockResolvedValue({ row: sampleType, error: null }),
+    deleteMemberType: vi.fn().mockResolvedValue({ error: null }),
+    updateAppSettings: vi.fn().mockResolvedValue({ row: sampleSettings, error: null }),
     ...overrides,
   };
 }
@@ -163,11 +161,9 @@ describe('SettingsStore', () => {
     );
   });
 
-  it('maps a duplicate name to name_taken', async () => {
+  it('surfaces a typed name_taken rejection from the repository', async () => {
     const repo = repoFake({
-      createMemberType: vi
-        .fn()
-        .mockResolvedValue({ row: null, error: 'duplicate key', code: '23505' }),
+      createMemberType: vi.fn().mockResolvedValue({ row: null, error: 'name_taken' }),
     });
     const { store } = await createStore(repo);
 
@@ -176,9 +172,9 @@ describe('SettingsStore', () => {
     expect(result.error).toBe('name_taken');
   });
 
-  it('maps an in-use delete to member_type_in_use', async () => {
+  it('surfaces a typed member_type_in_use rejection from the repository', async () => {
     const repo = repoFake({
-      deleteMemberType: vi.fn().mockResolvedValue({ error: 'fk', code: '23503' }),
+      deleteMemberType: vi.fn().mockResolvedValue({ error: 'member_type_in_use' }),
     });
     const { store } = await createStore(repo);
     await store.init();

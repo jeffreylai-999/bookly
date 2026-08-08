@@ -1,5 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 
+import {
+  createPostgrestClientMock,
+  createQueryBuilderMock,
+} from '../core/postgrest/postgrest-access.testing';
 import { SUPABASE_CLIENT } from '../core/supabase';
 import {
   AuditRepository,
@@ -7,38 +11,13 @@ import {
   localDayStartIso,
 } from './audit.repository';
 
-function createQueryBuilder(result: {
-  data: unknown;
-  error: { message: string } | null;
-  count?: number | null;
-}) {
-  const builder = {
-    select: vi.fn(),
-    eq: vi.fn(),
-    gte: vi.fn(),
-    lt: vi.fn(),
-    order: vi.fn(),
-    range: vi.fn(),
-    limit: vi.fn(),
-    then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve),
-  };
-  builder.select.mockReturnValue(builder);
-  builder.eq.mockReturnValue(builder);
-  builder.gte.mockReturnValue(builder);
-  builder.lt.mockReturnValue(builder);
-  builder.order.mockReturnValue(builder);
-  builder.range.mockReturnValue(builder);
-  builder.limit.mockReturnValue(builder);
-  return builder;
-}
-
 describe('AuditRepository', () => {
   it('lists audit rows with composed filters and server-side pagination', async () => {
-    const builder = createQueryBuilder({ data: [], error: null, count: 0 });
-    const from = vi.fn().mockReturnValue(builder);
+    const builder = createQueryBuilderMock({ data: [], error: null, count: 0 });
+    const client = createPostgrestClientMock({ from: builder });
 
     await TestBed.configureTestingModule({
-      providers: [AuditRepository, { provide: SUPABASE_CLIENT, useValue: { from } }],
+      providers: [AuditRepository, { provide: SUPABASE_CLIENT, useValue: client }],
     }).compileComponents();
 
     const repo = TestBed.inject(AuditRepository);
@@ -52,7 +31,7 @@ describe('AuditRepository', () => {
       toDate: '2026-07-31',
     });
 
-    expect(from).toHaveBeenCalledWith('audit_log');
+    expect(client.from).toHaveBeenCalledWith('audit_log');
     expect(builder.select).toHaveBeenCalledWith(
       '*, actor_profile:profiles!audit_log_actor_fkey(id, full_name, email)',
       { count: 'exact' },
@@ -67,11 +46,11 @@ describe('AuditRepository', () => {
   });
 
   it('skips optional filters when set to all / empty', async () => {
-    const builder = createQueryBuilder({ data: [], error: null, count: 0 });
-    const from = vi.fn().mockReturnValue(builder);
+    const builder = createQueryBuilderMock({ data: [], error: null, count: 0 });
+    const client = createPostgrestClientMock({ from: builder });
 
     await TestBed.configureTestingModule({
-      providers: [AuditRepository, { provide: SUPABASE_CLIENT, useValue: { from } }],
+      providers: [AuditRepository, { provide: SUPABASE_CLIENT, useValue: client }],
     }).compileComponents();
 
     const repo = TestBed.inject(AuditRepository);
@@ -92,20 +71,20 @@ describe('AuditRepository', () => {
   });
 
   it('lists the most recent entries regardless of filters, for the Overview feed', async () => {
-    const builder = createQueryBuilder({
+    const builder = createQueryBuilderMock({
       data: [{ id: 'a1', action: 'loan.checkin', entity_type: 'loan', entity_id: 'l1' }],
       error: null,
     });
-    const from = vi.fn().mockReturnValue(builder);
+    const client = createPostgrestClientMock({ from: builder });
 
     await TestBed.configureTestingModule({
-      providers: [AuditRepository, { provide: SUPABASE_CLIENT, useValue: { from } }],
+      providers: [AuditRepository, { provide: SUPABASE_CLIENT, useValue: client }],
     }).compileComponents();
 
     const repo = TestBed.inject(AuditRepository);
     const result = await repo.listRecent(8);
 
-    expect(from).toHaveBeenCalledWith('audit_log');
+    expect(client.from).toHaveBeenCalledWith('audit_log');
     expect(builder.order).toHaveBeenCalledWith('created_at', { ascending: false });
     expect(builder.limit).toHaveBeenCalledWith(8);
     expect(result.error).toBeNull();
@@ -113,20 +92,20 @@ describe('AuditRepository', () => {
   });
 
   it('lists actor profiles for the filter dropdown', async () => {
-    const builder = createQueryBuilder({
+    const builder = createQueryBuilderMock({
       data: [{ id: 'a1', full_name: 'Admin', email: 'admin@bookly.local' }],
       error: null,
     });
-    const from = vi.fn().mockReturnValue(builder);
+    const client = createPostgrestClientMock({ from: builder });
 
     await TestBed.configureTestingModule({
-      providers: [AuditRepository, { provide: SUPABASE_CLIENT, useValue: { from } }],
+      providers: [AuditRepository, { provide: SUPABASE_CLIENT, useValue: client }],
     }).compileComponents();
 
     const repo = TestBed.inject(AuditRepository);
     const result = await repo.listActors();
 
-    expect(from).toHaveBeenCalledWith('profiles');
+    expect(client.from).toHaveBeenCalledWith('profiles');
     expect(builder.select).toHaveBeenCalledWith('id, full_name, email');
     expect(builder.order).toHaveBeenCalledWith('full_name', { ascending: true });
     expect(result.rows).toHaveLength(1);
