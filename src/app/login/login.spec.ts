@@ -2,14 +2,22 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideTranslocoMissingHandler, TranslocoTestingModule } from '@jsverse/transloco';
 import axe from 'axe-core';
+import { Eye, EyeOff, LUCIDE_ICONS, LucideIconProvider } from 'lucide-angular';
 
 import { AuthService } from '../core/auth';
 import { ThrowingMissingKeyHandler } from '../core/i18n';
+import { ToastService } from '../ui';
 import en from '../../../public/i18n/en.json';
 import { Login } from './login';
 
+const toast = { error: vi.fn(), show: vi.fn() };
+const login = vi.fn().mockResolvedValue({ error: null });
+
 describe('Login', () => {
   beforeEach(async () => {
+    login.mockReset().mockResolvedValue({ error: null });
+    toast.error.mockReset();
+    toast.show.mockReset();
     await TestBed.configureTestingModule({
       imports: [
         Login,
@@ -23,10 +31,14 @@ describe('Login', () => {
         provideRouter([]),
         provideTranslocoMissingHandler(ThrowingMissingKeyHandler),
         {
+          provide: LUCIDE_ICONS,
+          multi: true,
+          useValue: new LucideIconProvider({ Eye, EyeOff }),
+        },
+        { provide: ToastService, useValue: toast },
+        {
           provide: AuthService,
-          useValue: {
-            login: async () => ({ error: null }),
-          },
+          useValue: { login },
         },
       ],
     }).compileComponents();
@@ -42,6 +54,22 @@ describe('Login', () => {
     expect(el.querySelector('input[type="email"]')).not.toBeNull();
     expect(el.querySelector('input[type="password"]')).not.toBeNull();
     expect(el.querySelector('button[type="submit"]')).not.toBeNull();
+  });
+
+  it('reveals the password when the eye toggle is pressed', async () => {
+    const fixture = TestBed.createComponent(Login);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const toggle = el.querySelector('button[aria-label="Show password"]') as HTMLButtonElement;
+    expect(el.querySelector('input[type="password"]')).not.toBeNull();
+
+    toggle.click();
+    await fixture.whenStable();
+
+    expect(el.querySelector('input[autocomplete="current-password"]')?.getAttribute('type')).toBe(
+      'text',
+    );
+    expect(el.querySelector('button[aria-label="Hide password"]')).not.toBeNull();
   });
 
   it('reports no invalid state until a field is touched', async () => {
@@ -76,6 +104,27 @@ describe('Login', () => {
     await fixture.whenStable();
 
     expect(el.textContent).toContain('Enter a valid email address');
+  });
+
+  it('toasts a failed sign-in instead of showing it on the card', async () => {
+    login.mockResolvedValueOnce({ error: 'credentials' });
+    const fixture = TestBed.createComponent(Login);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+
+    const email = el.querySelector('input[type="email"]') as HTMLInputElement;
+    email.value = 'staff@bookly.local';
+    email.dispatchEvent(new Event('input', { bubbles: true }));
+    const password = el.querySelector('input[autocomplete="current-password"]') as HTMLInputElement;
+    password.value = 'wrong-password';
+    password.dispatchEvent(new Event('input', { bubbles: true }));
+    await fixture.whenStable();
+
+    (el.querySelector('button[type="submit"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+
+    expect(toast.error).toHaveBeenCalledWith('Sign-in failed. Check your email and password.');
+    expect(el.textContent).not.toContain('Sign-in failed. Check your email and password.');
   });
 
   it('has no serious AXE violations', async () => {
