@@ -14,7 +14,7 @@ import { LucideAngularModule } from 'lucide-angular';
     <input
       #input
       type="search"
-      class="w-full rounded-lg border border-line bg-surface py-2.5 pl-9 pr-3.5 text-sm text-ink transition-colors duration-100 placeholder:text-ink-muted focus-ring focus:border-brand"
+      class="w-full rounded-lg border border-line bg-surface py-2.5 pl-11 pr-3.5 text-sm text-ink transition-colors duration-100 placeholder:text-ink-muted focus-ring focus:border-brand"
       [placeholder]="placeholder()"
       [value]="value()"
       [attr.aria-label]="ariaLabel() ?? placeholder()"
