@@ -141,6 +141,13 @@ export class AuditStore {
     return this.load();
   }
 
+  setDateRange(from: string, to: string): Promise<void> {
+    this.fromDateState.set(from);
+    this.toDateState.set(to);
+    this.pageState.set(1);
+    return this.load();
+  }
+
   setPage(page: number): Promise<void> {
     this.pageState.set(page);
     return this.load();
