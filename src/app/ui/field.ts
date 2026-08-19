@@ -25,13 +25,15 @@ let nextFieldId = 0;
       }
     </label>
     <ng-content />
-    @if (error()) {
-      <p [id]="errorId" role="alert" class="mt-1.5 text-xs font-semibold text-danger">
-        {{ error() }}
-      </p>
-    } @else if (hint()) {
-      <p [id]="hintId" class="mt-1.5 text-xs text-ink-muted">{{ hint() }}</p>
-    }
+    <div class="mt-1 min-h-3 text-xs leading-3">
+      @if (error()) {
+        <p [id]="errorId" role="alert" class="font-semibold text-danger">
+          {{ error() }}
+        </p>
+      } @else if (hint()) {
+        <p [id]="hintId" class="text-ink-muted">{{ hint() }}</p>
+      }
+    </div>
   `,
   host: { class: 'block' },
 })
