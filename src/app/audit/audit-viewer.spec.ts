@@ -3,8 +3,11 @@ import { TestBed } from '@angular/core/testing';
 import { provideTranslocoMissingHandler, TranslocoTestingModule } from '@jsverse/transloco';
 import axe from 'axe-core';
 import {
+  Calendar,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   LUCIDE_ICONS,
   LucideIconProvider,
   X,
@@ -34,7 +37,14 @@ const sample: AuditListItem = {
 const lucideIcons = {
   provide: LUCIDE_ICONS,
   multi: true,
-  useValue: new LucideIconProvider({ ChevronLeft, ChevronRight, X }),
+  useValue: new LucideIconProvider({
+    Calendar,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
+    X,
+  }),
 };
 
 function createStoreFake(overrides: Partial<Record<string, unknown>> = {}) {
@@ -61,6 +71,7 @@ function createStoreFake(overrides: Partial<Record<string, unknown>> = {}) {
     setEntityType: vi.fn(),
     setFromDate: vi.fn(),
     setToDate: vi.fn(),
+    setDateRange: vi.fn(),
     setPage: vi.fn(),
     clearFilters: vi.fn(),
     ...overrides,
@@ -94,6 +105,17 @@ describe('AuditViewer', () => {
     expect(text).toContain('Member created');
     expect(text).toContain('Admin Member Test');
 
+    const labels = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('label'),
+    ).map((label) => label.textContent?.replace(/\s+/g, ' ').trim());
+    expect(labels).toEqual(['Actor', 'Action', 'Entity', 'Date range']);
+
+    const clearFilters = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((btn) => btn.textContent?.includes('Clear filters')) as HTMLButtonElement;
+    expect(clearFilters).toBeTruthy();
+    expect(clearFilters.disabled).toBe(true);
+
     const detailBtn = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
     ).find((btn) => btn.textContent?.includes('View detail'));
@@ -104,6 +126,12 @@ describe('AuditViewer', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Ada Lovelace');
     expect(fixture.nativeElement.textContent).toContain('MBR-ADA-1');
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('pre .text-success')?.textContent,
+    ).toContain('Ada Lovelace');
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('pre .text-brand-dark')?.textContent,
+    ).toContain('name');
   });
 
   it('renders the empty state when there are no audit rows', async () => {
@@ -135,6 +163,38 @@ describe('AuditViewer', () => {
     await fixture.whenStable();
 
     expect(fixture.nativeElement.textContent).toContain('No audit entries yet');
+  });
+
+  it('enables Clear filters once a filter is active', async () => {
+    const store = createStoreFake({
+      hasActiveFilters: signal(true).asReadonly(),
+    });
+
+    await TestBed.configureTestingModule({
+      imports: [
+        AuditViewer,
+        TranslocoTestingModule.forRoot({
+          langs: { en },
+          translocoConfig: { availableLangs: ['en'], defaultLang: 'en' },
+          preloadLangs: true,
+        }),
+      ],
+      providers: [
+        lucideIcons,
+        provideTranslocoMissingHandler(ThrowingMissingKeyHandler),
+        { provide: AuditStore, useValue: store },
+      ],
+    })
+      .overrideComponent(AuditViewer, { set: { providers: [] } })
+      .compileComponents();
+
+    const fixture = TestBed.createComponent(AuditViewer);
+    await fixture.whenStable();
+
+    const clearFilters = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((btn) => btn.textContent?.includes('Clear filters')) as HTMLButtonElement;
+    expect(clearFilters.disabled).toBe(false);
   });
 
   it('passes AXE wcag2a/aa on the empty state', async () => {

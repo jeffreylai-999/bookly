@@ -3,10 +3,13 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 
 import {
+  DateRangePreset,
+  DateRangeValue,
   SelectOption,
   TableColumn,
   UiBtn,
   UiCellDef,
+  UiDateRange,
   UiDialog,
   UiEmptyState,
   UiField,
@@ -20,8 +23,9 @@ import {
   AUDIT_ACTION_CODES,
   AUDIT_ENTITY_TYPES,
   auditActionLabelKey,
-  formatAuditDetail,
+  highlightJson,
   type AuditListItem,
+  type JsonHighlightKind,
 } from './audit.types';
 
 @Component({
@@ -32,6 +36,7 @@ import {
     TranslocoPipe,
     UiBtn,
     UiCellDef,
+    UiDateRange,
     UiDialog,
     UiEmptyState,
     UiField,
@@ -56,53 +61,60 @@ import {
         role="search"
         [attr.aria-label]="'audit.filtersLabel' | transloco"
       >
-        <div class="w-52 max-w-full">
+        <ui-field class="w-52 max-w-full" [label]="'audit.filters.actor' | transloco" #actorField>
           <ui-select
+            [controlId]="actorField.controlId"
             [options]="actorOptions()"
             [value]="store.actorId()"
-            [ariaLabel]="'audit.filters.actor' | transloco"
             (valueChange)="store.setActorId($event || 'all')"
           />
-        </div>
-        <div class="w-52 max-w-full">
+        </ui-field>
+        <ui-field class="w-52 max-w-full" [label]="'audit.filters.action' | transloco" #actionField>
           <ui-select
+            [controlId]="actionField.controlId"
             [options]="actionOptions()"
             [value]="store.action()"
-            [ariaLabel]="'audit.filters.action' | transloco"
             (valueChange)="store.setAction($event || 'all')"
           />
-        </div>
-        <div class="w-44 max-w-full">
+        </ui-field>
+        <ui-field class="w-44 max-w-full" [label]="'audit.filters.entity' | transloco" #entityField>
           <ui-select
+            [controlId]="entityField.controlId"
             [options]="entityOptions()"
             [value]="store.entityType()"
-            [ariaLabel]="'audit.filters.entity' | transloco"
             (valueChange)="store.setEntityType($event || 'all')"
           />
-        </div>
-        <ui-field class="w-40 max-w-full" [label]="'audit.filters.from' | transloco" #fromField>
-          <input
-            type="date"
-            class="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink transition-colors duration-100 focus-ring focus:border-brand"
-            [id]="fromField.controlId"
-            [value]="store.fromDate()"
-            (change)="onFromDate($event)"
+        </ui-field>
+        <ui-field class="w-[22rem] max-w-full" [label]="'audit.filters.dates' | transloco" #datesField>
+          <ui-date-range
+            [controlId]="datesField.controlId"
+            [from]="store.fromDate()"
+            [to]="store.toDate()"
+            [ariaLabel]="'audit.filters.dates' | transloco"
+            [placeholder]="'audit.filters.datesPlaceholder' | transloco"
+            [toSeparator]="'audit.filters.toSeparator' | transloco"
+            [clearLabel]="'audit.filters.clearDates' | transloco"
+            [dialogLabel]="'audit.filters.datesDialog' | transloco"
+            [locale]="transloco.activeLang()"
+            [prevMonthLabel]="'audit.filters.prevMonth' | transloco"
+            [nextMonthLabel]="'audit.filters.nextMonth' | transloco"
+            [prevYearLabel]="'audit.filters.prevYear' | transloco"
+            [nextYearLabel]="'audit.filters.nextYear' | transloco"
+            [presets]="datePresets()"
+            (rangeChange)="onDateRange($event)"
           />
         </ui-field>
-        <ui-field class="w-40 max-w-full" [label]="'audit.filters.to' | transloco" #toField>
-          <input
-            type="date"
-            class="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink transition-colors duration-100 focus-ring focus:border-brand"
-            [id]="toField.controlId"
-            [value]="store.toDate()"
-            (change)="onToDate($event)"
-          />
-        </ui-field>
-        @if (store.hasActiveFilters()) {
-          <button uiBtn variant="outline" type="button" (click)="store.clearFilters()">
+        <div class="mb-4">
+          <button
+            uiBtn
+            variant="outline"
+            type="button"
+            [disabled]="!store.hasActiveFilters()"
+            (click)="store.clearFilters()"
+          >
             {{ 'audit.actions.clearFilters' | transloco }}
           </button>
-        }
+        </div>
       </div>
 
       @if (store.dateRangeInvalid()) {
@@ -206,7 +218,7 @@ import {
       >
         <pre
           class="max-h-[min(60vh,28rem)] overflow-auto rounded-lg border border-divider bg-canvas p-4 font-mono text-[12.5px] leading-relaxed text-ink whitespace-pre-wrap break-all"
-          >{{ detailBody() }}</pre
+          >@for (token of detailTokens(); track $index) {<span [class]="jsonTokenClass(token.kind)">{{ token.text }}</span>}</pre
         >
       </ui-dialog>
     </div>
@@ -214,12 +226,12 @@ import {
 })
 export class AuditViewer implements OnInit {
   protected readonly store = inject(AuditStore);
-  private readonly transloco = inject(TranslocoService);
+  protected readonly transloco = inject(TranslocoService);
 
   protected readonly detailOpen = signal(false);
   private readonly selected = signal<AuditListItem | null>(null);
 
-  protected readonly detailBody = computed(() => formatAuditDetail(this.selected()?.detail));
+  protected readonly detailTokens = computed(() => highlightJson(this.selected()?.detail));
   protected readonly detailSubtitle = computed(() => {
     const row = this.selected();
     if (!row) {
@@ -227,6 +239,12 @@ export class AuditViewer implements OnInit {
     }
     return this.actionLabel(row.action);
   });
+
+  protected readonly datePresets = computed((): DateRangePreset[] => [
+    { id: 'lastWeek', label: this.transloco.translate('audit.filters.lastWeek') },
+    { id: 'lastMonth', label: this.transloco.translate('audit.filters.lastMonth') },
+    { id: 'last3Months', label: this.transloco.translate('audit.filters.last3Months') },
+  ]);
 
   protected readonly actorOptions = computed((): SelectOption[] => [
     { value: 'all', label: this.transloco.translate('audit.filters.allActors') },
@@ -295,18 +313,35 @@ export class AuditViewer implements OnInit {
     );
   }
 
-  protected onFromDate(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    this.store.setFromDate(value);
-  }
-
-  protected onToDate(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    this.store.setToDate(value);
+  protected onDateRange(range: DateRangeValue): void {
+    void this.store.setDateRange(range.from, range.to);
   }
 
   protected openDetail(row: AuditListItem): void {
     this.selected.set(row);
     this.detailOpen.set(true);
+  }
+
+  protected jsonTokenClass(kind: JsonHighlightKind): string {
+    switch (kind) {
+      case 'key':
+        return 'text-brand-dark font-semibold';
+      case 'string':
+        return 'text-success';
+      case 'number':
+        return 'text-warning';
+      case 'boolean':
+        return 'text-badge-purple-text';
+      case 'null':
+        return 'text-ink-muted italic';
+      case 'punctuation':
+        return 'text-ink-muted';
+      case 'plain':
+        return 'text-ink';
+      default: {
+        const _exhaustive: never = kind;
+        return _exhaustive;
+      }
+    }
   }
 }

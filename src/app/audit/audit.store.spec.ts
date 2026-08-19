@@ -79,6 +79,26 @@ describe('AuditStore', () => {
     expect(store.empty()).toBe(true);
   });
 
+  it('applies both date ends in a single range update', async () => {
+    const list = vi.fn().mockResolvedValue({ rows: [], total: 0, error: null });
+    const listActors = vi.fn().mockResolvedValue({ rows: [], error: null });
+
+    await TestBed.configureTestingModule({
+      providers: [AuditStore, { provide: AuditRepository, useValue: { list, listActors } }],
+    }).compileComponents();
+
+    const store = TestBed.inject(AuditStore);
+    list.mockClear();
+    await store.setDateRange('2026-08-04', '2026-10-22');
+
+    expect(store.fromDate()).toBe('2026-08-04');
+    expect(store.toDate()).toBe('2026-10-22');
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledWith(
+      expect.objectContaining({ fromDate: '2026-08-04', toDate: '2026-10-22', page: 1 }),
+    );
+  });
+
   it('reloads page 1 when a populated result makes the selected page out of range', async () => {
     // Page 2's own response is empty (matching a shrunk result set) and is
     // distinct from page 1's response, so the final rows can only be
