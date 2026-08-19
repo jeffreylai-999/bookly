@@ -32,6 +32,28 @@ describe('UiDialog', () => {
     return [fixture, fixture.nativeElement.querySelector('dialog') as HTMLDialogElement];
   };
 
+  it('does not force display:flex while closed, so the native dialog can hide', async () => {
+    const [, dialog] = await render();
+    expect(dialog.className.split(/\s+/)).not.toContain('flex');
+    expect(dialog.className).toContain('open:flex');
+    expect(dialog.open).toBe(false);
+  });
+
+  it('centers on the viewport so Tailwind preflight cannot pin it top-left', async () => {
+    const [, dialog] = await render();
+    expect(dialog.className).toContain('left-1/2');
+    expect(dialog.className).toContain('top-1/2');
+    expect(dialog.className).toContain('-translate-x-1/2');
+    expect(dialog.className).toContain('-translate-y-1/2');
+  });
+
+  it('does not put the scrollbar on the dialog itself, so a focus ring cannot resize it', async () => {
+    const [, dialog] = await render();
+    expect(dialog.className).toContain('overflow-hidden');
+    expect(dialog.className).toContain('max-h-[90vh]');
+    expect(dialog.className).not.toContain('overflow-y-auto');
+  });
+
   it('labels itself by its own heading', async () => {
     const [, dialog] = await render();
     const headingId = dialog.getAttribute('aria-labelledby');
