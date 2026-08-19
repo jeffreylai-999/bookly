@@ -12,6 +12,7 @@ import {
   UiCellDef,
   UiDialog,
   UiField,
+  UiSelect,
   UiSkeleton,
   UiTable,
 } from '../ui';
@@ -70,6 +71,7 @@ const EMPTY_APP_FORM: AppSettingsFormValue = {
     UiCellDef,
     UiDialog,
     UiField,
+    UiSelect,
     UiSkeleton,
     UiTable,
   ],
@@ -205,29 +207,23 @@ const EMPTY_APP_FORM: AppSettingsFormValue = {
                 </ui-field>
 
                 <ui-field [label]="'settings.app.defaultLocale' | transloco" #localeField>
-                  <select
-                    [id]="localeField.controlId"
-                    [attr.aria-describedby]="localeField.describedBy()"
-                    [formField]="appForm.defaultLocale"
-                    class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus-ring focus:border-brand"
-                  >
-                    @for (option of localeOptions(); track option.value) {
-                      <option [value]="option.value">{{ option.label }}</option>
-                    }
-                  </select>
+                  <ui-select
+                    [controlId]="localeField.controlId"
+                    [describedBy]="localeField.describedBy()"
+                    [options]="localeOptions()"
+                    [value]="appForm.defaultLocale().value()"
+                    (valueChange)="onLocaleChange($event)"
+                  />
                 </ui-field>
 
                 <ui-field [label]="'settings.app.defaultReportRange' | transloco" #rangeField>
-                  <select
-                    [id]="rangeField.controlId"
-                    [attr.aria-describedby]="rangeField.describedBy()"
-                    [formField]="appForm.defaultReportRangeDays"
-                    class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus-ring focus:border-brand"
-                  >
-                    @for (option of reportRangeOptions(); track option.value) {
-                      <option [value]="option.value">{{ option.label }}</option>
-                    }
-                  </select>
+                  <ui-select
+                    [controlId]="rangeField.controlId"
+                    [describedBy]="rangeField.describedBy()"
+                    [options]="reportRangeOptions()"
+                    [value]="appForm.defaultReportRangeDays().value()"
+                    (valueChange)="onReportRangeChange($event)"
+                  />
                 </ui-field>
 
                 <ui-field
@@ -347,7 +343,7 @@ const EMPTY_APP_FORM: AppSettingsFormValue = {
       [subtitle]="'settings.memberTypes.form.subtitle' | transloco"
       [closeLabel]="'settings.memberTypes.form.close' | transloco"
     >
-      <form id="member-type-form" class="flex flex-col gap-4" (submit)="onTypeSubmit($event)" novalidate>
+      <form id="member-type-form" class="flex flex-col gap-2" (submit)="onTypeSubmit($event)" novalidate>
         @let typeNameKey = typeNameErrorKey();
         @let typeNameErrorText = typeNameKey ? (typeNameKey | transloco) : undefined;
 
@@ -613,6 +609,16 @@ export class Settings implements OnInit {
       label: this.transloco.translate('settings.memberTypes.days', { count: Number(days) }),
     })),
   );
+
+  protected onLocaleChange(value: string): void {
+    this.appModel.update((current) => ({ ...current, defaultLocale: value }));
+    this.appForm.defaultLocale().markAsTouched();
+  }
+
+  protected onReportRangeChange(value: string): void {
+    this.appModel.update((current) => ({ ...current, defaultReportRangeDays: value }));
+    this.appForm.defaultReportRangeDays().markAsTouched();
+  }
 
   protected readonly typeNameErrorKey = computed(() => {
     const field = this.typeForm.name();

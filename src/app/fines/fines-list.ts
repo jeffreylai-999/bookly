@@ -17,6 +17,7 @@ import {
   UiKpiCard,
   UiPagination,
   UiSegmented,
+  UiSelect,
   UiSkeleton,
   UiTable,
 } from '../ui';
@@ -64,6 +65,7 @@ type ReasonFormValue = { reason: string };
     UiKpiCard,
     UiPagination,
     UiSegmented,
+    UiSelect,
     UiSkeleton,
     UiTable,
   ],
@@ -198,7 +200,7 @@ type ReasonFormValue = { reason: string };
       [subtitle]="paymentSubtitle()"
       [closeLabel]="'fines.payment.cancel' | transloco"
     >
-      <form id="payment-form" class="flex flex-col gap-4" (submit)="onPaymentSubmit($event)" novalidate>
+      <form id="payment-form" class="flex flex-col gap-2" (submit)="onPaymentSubmit($event)" novalidate>
         @let amountKey = amountErrorKey();
         @let amountErrorText = amountKey ? (amountKey | transloco: amountErrorParams()) : undefined;
 
@@ -223,16 +225,13 @@ type ReasonFormValue = { reason: string };
         </ui-field>
 
         <ui-field [label]="'fines.payment.method' | transloco" [required]="true" #methodField>
-          <select
-            [id]="methodField.controlId"
-            [attr.aria-describedby]="methodField.describedBy()"
-            [formField]="paymentForm.method"
-            class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus-ring focus:border-brand"
-          >
-            @for (method of methodOptions; track method.value) {
-              <option [value]="method.value">{{ method.label }}</option>
-            }
-          </select>
+          <ui-select
+            [controlId]="methodField.controlId"
+            [describedBy]="methodField.describedBy()"
+            [options]="methodOptions"
+            [value]="paymentForm.method().value()"
+            (valueChange)="onPaymentMethodChange($event)"
+          />
         </ui-field>
       </form>
 
@@ -303,7 +302,7 @@ type ReasonFormValue = { reason: string };
       [subtitle]="waiveSubtitle()"
       [closeLabel]="'fines.waive.cancel' | transloco"
     >
-      <form id="waive-form" class="flex flex-col gap-4" (submit)="onWaiveSubmit($event)" novalidate>
+      <form id="waive-form" class="flex flex-col gap-2" (submit)="onWaiveSubmit($event)" novalidate>
         @let reasonKey = waiveReasonErrorKey();
         @let reasonErrorText = reasonKey ? (reasonKey | transloco) : undefined;
 
@@ -715,6 +714,14 @@ export class FinesList implements OnInit {
     this.paymentFine.set(row);
     this.paymentModel.set({ amount: fineBalance(row).toFixed(2), method: 'cash' });
     this.paymentOpen.set(true);
+  }
+
+  protected onPaymentMethodChange(value: string): void {
+    if (!(PAYMENT_METHODS as readonly string[]).includes(value)) {
+      return;
+    }
+    this.paymentModel.update((current) => ({ ...current, method: value as PaymentMethod }));
+    this.paymentForm.method().markAsTouched();
   }
 
   protected async onPaymentSubmit(event: Event): Promise<void> {
