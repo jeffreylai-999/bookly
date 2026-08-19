@@ -167,4 +167,25 @@ describe('Catalog', () => {
     });
     expect(results.violations).toEqual([]);
   });
+
+  it('keeps number of copies at 1 or more while typing', async () => {
+    const fixture = TestBed.createComponent(Catalog);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const add = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Add title'));
+    add?.click();
+    await fixture.whenStable();
+
+    const input = el.querySelector('input[type="number"]') as HTMLInputElement;
+    expect(input).toBeTruthy();
+
+    const minus = new KeyboardEvent('keydown', { key: '-', bubbles: true, cancelable: true });
+    input.dispatchEvent(minus);
+    expect(minus.defaultPrevented).toBe(true);
+
+    input.value = '-3';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await fixture.whenStable();
+    expect(input.value).toBe('1');
+  });
 });
