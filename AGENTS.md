@@ -59,29 +59,14 @@ iptables set to `iptables-legacy`. These are required here — do not change the
 (see `.env.example`). Demo credentials (local only) live in `scripts/seed-auth.mjs`:
 `staff@bookly.local` / `bookly-staff-demo`, `admin@bookly.local` / `bookly-admin-demo`.
 
-### Login gotcha: email provider disabled by a Supabase CLI bug
+### Login: invite-only email (not a disabled provider)
 
-The app logs in with email+password (`signInWithPassword`) for the seeded staff/admin
-users (invite-only; self-signup is intentionally off). With the pinned Supabase CLI,
-`supabase/config.toml`'s `[auth.email] enable_signup = false` is mis-mapped to
-`GOTRUE_EXTERNAL_EMAIL_ENABLED=false`, which disables the **entire** email provider, so
-login returns `422 {"msg":"email_provider_disabled"}`. This is upstream CLI bug
-[supabase/supabase#40582](https://github.com/supabase/supabase/issues/40582); the fix
-([supabase/cli 55ae792](https://github.com/supabase/cli/commit/55ae792054ee8c5837faaf6ae686bfb1df56a4e0))
-is not in a released version yet. Do not "fix" this by editing committed config in place.
+Staff sign in with email+password (`signInWithPassword`). Self-signup stays off via
+`[auth] enable_signup = false` (`GOTRUE_DISABLE_SIGNUP=true`). The email provider
+must stay on via `[auth.email] enable_signup = true`. If that flag is false, the
+CLI maps it to `GOTRUE_EXTERNAL_EMAIL_ENABLED=false` and login returns
+`422 email_provider_disabled` ([supabase/supabase#40582](https://github.com/supabase/supabase/issues/40582)).
 
-To exercise UI login locally, enable the email provider for the running stack **without**
-changing committed files (this only turns on sign-in; signup stays disabled via
-`GOTRUE_DISABLE_SIGNUP=true`, matching the intended invite-only behavior):
-
-```bash
-# recreate the auth container with the provider on (env-only override)
-docker inspect supabase_auth_bookly --format '{{json .Config.Env}}' > /tmp/env.json
-# ...re-run `docker run` for image gotrue on network supabase_network_bookly
-# (alias "auth") with all existing env plus: -e GOTRUE_EXTERNAL_EMAIL_ENABLED=true
-```
-
-Simpler alternative for a one-off: temporarily set `[auth.email] enable_signup = true`
-in `supabase/config.toml`, run `pnpm supabase:stop && pnpm supabase:start`, then revert
-the file. (The correct upstream config once the CLI fix ships is
-`[auth].enable_signup=false` + `[auth.email].enable_signup=true`.)
+If Kong on `127.0.0.1:54321` is missing (`seed:auth` → `AuthRetryableFetchError: fetch failed`),
+recreate the stack from this checkout: `pnpm supabase:stop && pnpm supabase:start`.
+Do not reuse an Auth/Kong container whose bind mounts point at a deleted worktree.

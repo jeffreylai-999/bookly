@@ -77,7 +77,7 @@ Open your browser and navigate to `http://localhost:4200/`. The application relo
 
 ### Login note (local)
 
-With the pinned Supabase CLI, `[auth.email] enable_signup = false` can disable the entire email provider (`422 email_provider_disabled`). Self-signup is intentionally off; sign-in should still work. Until the upstream CLI fix ships, a one-off workaround is: temporarily set `[auth.email] enable_signup = true` in `supabase/config.toml`, run `pnpm supabase:stop && pnpm supabase:start`, then revert the file. Details: `AGENTS.md`.
+Invite-only: `[auth] enable_signup = false` (no self-signup) and `[auth.email] enable_signup = true` (email/password sign-in on). After `pnpm supabase:start`, run `pnpm seed:auth`, then sign in as `staff@bookly.local` / `bookly-staff-demo`. If Kong is down (`fetch failed` on port 54321), stop and start the stack from this checkout. Details: `AGENTS.md`.
 
 ## Available Scripts
 
