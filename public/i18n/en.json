@@ -38,6 +38,13 @@
     "skip": "Skip to main content",
     "nav": "Main",
     "toastDismiss": "Dismiss notification",
+    "toast": {
+      "primary": "Notice",
+      "success": "Success",
+      "warning": "Warning",
+      "info": "Info",
+      "error": "Error"
+    },
     "comingSoon": "This desk surface lands in a later slice."
   },
   "notifications": {

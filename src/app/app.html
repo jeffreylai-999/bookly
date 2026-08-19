@@ -1,2 +1,5 @@
 <router-outlet />
-<ui-toast-host [dismissLabel]="'shell.toastDismiss' | transloco" />
+<ui-toast-host
+  [dismissLabel]="'shell.toastDismiss' | transloco"
+  [titles]="toastTitles()"
+/>

@@ -254,12 +254,22 @@ interface DemoLoan {
           </ui-card>
         </div>
 
-        <ui-card title="Dialog & error toast">
+        <ui-card title="Toasts">
           <div class="flex flex-wrap items-center gap-3">
-            <button uiBtn (click)="dialogOpen.set(true)">Add title</button>
-            <button uiBtn variant="pill-muted" (click)="toast.error('Barcode not recognised')">
-              Raise an error
+            <button uiBtn (click)="toast.primary('Desk is ready for the next patron.')">
+              Primary
             </button>
+            <button uiBtn (click)="toast.success('This is a success message')">Success</button>
+            <button uiBtn variant="outline" (click)="toast.info('Loan period is 14 days.')">
+              Info
+            </button>
+            <button uiBtn variant="pill-muted" (click)="toast.warning('This copy is due tomorrow.')">
+              Warning
+            </button>
+            <button uiBtn variant="pill-muted" (click)="toast.error('Barcode not recognised')">
+              Error
+            </button>
+            <button uiBtn variant="outline" (click)="dialogOpen.set(true)">Add title</button>
           </div>
         </ui-card>
       </div>
