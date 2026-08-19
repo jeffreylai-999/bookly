@@ -59,6 +59,21 @@ describe('UiField', () => {
     );
   });
 
+  it('reserves a one-line message slot so an error does not grow the layout', async () => {
+    const [fixture, el] = await render();
+    fixture.componentInstance.hint.set(undefined);
+    await fixture.whenStable();
+
+    const slot = el.querySelector('.min-h-3') as HTMLElement;
+    expect(slot).toBeTruthy();
+    expect(slot.querySelector('p')).toBeNull();
+
+    fixture.componentInstance.error.set('Title is required');
+    await fixture.whenStable();
+    expect(el.querySelectorAll('.min-h-3').length).toBe(1);
+    expect(slot.querySelector('p')?.textContent?.trim()).toBe('Title is required');
+  });
+
   it('leaves aria-describedby off entirely when there is nothing to describe', async () => {
     const [fixture, el] = await render();
     fixture.componentInstance.hint.set(undefined);
