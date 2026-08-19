@@ -272,7 +272,7 @@
       "memberType": "Member type",
       "memberTypePlaceholder": "Select a type",
       "cardBarcode": "Card barcode",
-      "cardBarcodeHint": "Unique scan id, for example MBR-1042",
+      "cardBarcodeHint": "Filled automatically. You can change the unique part.",
       "email": "Email",
       "phone": "Phone",
       "cancel": "Cancel",
@@ -284,6 +284,7 @@
         "typeRequired": "Member type is required",
         "cardBarcodeRequired": "Card barcode is required",
         "cardBarcodePattern": "Card barcode must start with MBR-",
+        "emailInvalid": "Enter a valid email address",
         "saveFailed": "Could not save the member. Check the barcode is unique and try again."
       }
     },

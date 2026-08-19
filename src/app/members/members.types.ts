@@ -32,6 +32,7 @@ export interface MemberFormValue {
 
 export const MEMBER_CARD_PREFIX = 'MBR-';
 export const MEMBER_CARD_PATTERN = /^MBR-.+/;
+export const MEMBER_PHONE_MAX_LENGTH = 14;
 
 export function statusBadgeTone(
   status: MemberStatus,
