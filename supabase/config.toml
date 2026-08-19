@@ -218,8 +218,10 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# Allow/disallow new user signups via email to your project.
-enable_signup = false
+# Enables the email/password provider. This is not self-signup — signup is
+# [auth].enable_signup above. false here returns 422 email_provider_disabled
+# for staff sign-in (supabase/supabase#40582).
+enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
