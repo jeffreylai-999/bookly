@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import {
   BarPoint,
+  DateRangeValue,
   SegmentedOption,
   SelectOption,
   TableColumn,
@@ -12,6 +13,7 @@ import {
   UiBtn,
   UiCard,
   UiCellDef,
+  UiDateRange,
   UiDialog,
   UiEmptyState,
   UiField,
@@ -48,6 +50,7 @@ interface DemoLoan {
     UiBtn,
     UiCard,
     UiCellDef,
+    UiDateRange,
     UiDialog,
     UiEmptyState,
     UiField,
@@ -144,6 +147,12 @@ interface DemoLoan {
                 query() ? 'Filtering: ' + query() : 'No filter'
               }}</span>
             </div>
+            <ui-date-range
+              class="w-[22rem]"
+              [from]="dateFrom()"
+              [to]="dateTo()"
+              (rangeChange)="onDateRange($event)"
+            />
             <div class="flex items-center gap-3">
               <ui-search-input
                 class="w-72"
@@ -300,6 +309,8 @@ export class Styleguide {
   protected readonly selected = signal<readonly unknown[]>([]);
   protected readonly sort = signal<TableSort | null>(null);
   protected readonly dialogOpen = signal(false);
+  protected readonly dateFrom = signal('2026-08-04');
+  protected readonly dateTo = signal('2026-10-22');
   protected readonly tabs: SegmentedOption[] = [
     { label: 'Active', value: 'active' },
     { label: 'Overdue', value: 'overdue' },
@@ -376,6 +387,11 @@ export class Styleguide {
     const start = (this.page() - 1) * 3;
     return sorted.slice(start, start + 3);
   });
+
+  protected onDateRange(range: DateRangeValue): void {
+    this.dateFrom.set(range.from);
+    this.dateTo.set(range.to);
+  }
 
   protected saveTitle(): void {
     this.dialogOpen.set(false);

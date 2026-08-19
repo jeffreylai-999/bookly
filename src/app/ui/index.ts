@@ -3,6 +3,7 @@ export * from './badge';
 export * from './bar-chart';
 export * from './button';
 export * from './card';
+export * from './date-range';
 export * from './dialog';
 export * from './echart';
 export * from './empty-state';
