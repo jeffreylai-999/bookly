@@ -18,12 +18,12 @@ let nextDialogId = 0;
   template: `
     <dialog
       #dialog
-      class="w-[min(92vw,32rem)] rounded-card border border-line bg-surface p-0 text-ink backdrop:bg-ink-heading/40 open:block"
+      class="fixed left-1/2 top-1/2 max-h-[90vh] w-[min(92vw,32rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-card border border-line bg-surface p-0 text-ink backdrop:bg-ink-heading/40 open:flex"
       [attr.aria-labelledby]="titleId"
       (close)="open.set(false)"
       (cancel)="open.set(false)"
     >
-      <div class="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
+      <div class="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
         <div class="min-w-0">
           <h2 [id]="titleId" class="text-[15px] font-bold text-ink-heading">{{ heading() }}</h2>
           @if (subtitle()) {
@@ -39,8 +39,10 @@ let nextDialogId = 0;
           <lucide-angular name="x" [size]="18" [strokeWidth]="1.75" />
         </button>
       </div>
-      <div class="px-6 pb-6"><ng-content /></div>
-      <div class="flex justify-end gap-3 border-t border-divider px-6 py-4 empty:hidden">
+      <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 pb-6">
+        <ng-content />
+      </div>
+      <div class="flex shrink-0 justify-end gap-3 border-t border-divider px-6 py-4 empty:hidden">
         <ng-content select="[dialog-actions]" />
       </div>
     </dialog>
