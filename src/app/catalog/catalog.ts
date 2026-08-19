@@ -1,5 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { form, FormField, required, submit } from '@angular/forms/signals';
+import { form, FormField, min, required, submit } from '@angular/forms/signals';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { LucideAngularModule } from 'lucide-angular';
 
@@ -195,7 +195,7 @@ const STATUS_TONE: Record<CopyStatus, 'success' | 'info' | 'warning' | 'danger' 
       [subtitle]="'catalog.addDialog.subtitle' | transloco"
       [closeLabel]="'catalog.dialogClose' | transloco"
     >
-      <form class="flex flex-col gap-4" (submit)="onAddSubmit($event)" novalidate>
+      <form class="flex flex-col gap-2" (submit)="onAddSubmit($event)" novalidate>
         @let titleErrKey = titleErrorKey();
         @let titleErrorText = titleErrKey ? (titleErrKey | transloco) : undefined;
         @let authorKey = authorErrorKey();
@@ -285,9 +285,13 @@ const STATUS_TONE: Record<CopyStatus, 'success' | 'info' | 'warning' | 'danger' 
         >
           <input
             type="number"
+            step="1"
+            inputmode="numeric"
             [id]="copyCountField.controlId"
             [attr.aria-describedby]="copyCountField.describedBy()"
             [formField]="addForm.copyCount"
+            (keydown)="rejectNonPositiveCopyCount($event)"
+            (input)="clampCopyCount($event)"
             class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus-ring focus:border-brand"
           />
         </ui-field>
@@ -355,7 +359,7 @@ const STATUS_TONE: Record<CopyStatus, 'success' | 'info' | 'warning' | 'danger' 
       [heading]="'catalog.editDialog.heading' | transloco"
       [closeLabel]="'catalog.dialogClose' | transloco"
     >
-      <form class="flex flex-col gap-4" (submit)="onEditSubmit($event)" novalidate>
+      <form class="flex flex-col gap-2" (submit)="onEditSubmit($event)" novalidate>
         <ui-field
           [label]="'catalog.fields.barcode' | transloco"
           [hint]="'catalog.fields.barcodeHint' | transloco"
@@ -424,6 +428,8 @@ export class Catalog implements OnInit {
     required(path.title);
     required(path.author);
     required(path.genre);
+    required(path.copyCount);
+    min(path.copyCount, 1);
   });
 
   protected readonly columns: TableColumn<CatalogTitle>[] = [
@@ -555,6 +561,21 @@ export class Catalog implements OnInit {
 
   protected async clearFilters(): Promise<void> {
     await this.store.clearFilters();
+  }
+
+  protected rejectNonPositiveCopyCount(event: KeyboardEvent): void {
+    if (event.key === '-' || event.key === '+' || event.key === 'e' || event.key === 'E') {
+      event.preventDefault();
+    }
+  }
+
+  protected clampCopyCount(event: Event): void {
+    const el = event.target as HTMLInputElement;
+    if (el.value === '') return;
+    const n = Number(el.value);
+    if (Number.isFinite(n) && n >= 1) return;
+    el.value = '1';
+    this.addModel.update((current) => ({ ...current, copyCount: 1 }));
   }
 
   protected openAddTitle(): void {
