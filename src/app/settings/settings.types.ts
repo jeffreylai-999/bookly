@@ -13,8 +13,8 @@ export interface MemberTypeFormValue {
 }
 
 /**
- * `defaultReportRangeDays` rides the form as a string: a native `<select>`
- * only speaks strings, and the schema converts on save.
+ * `defaultReportRangeDays` rides the form as a string: the range picker
+ * options are string keys, and the schema converts on save.
  */
 export interface AppSettingsFormValue {
   currency: string;

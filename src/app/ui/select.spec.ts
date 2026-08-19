@@ -25,60 +25,71 @@ describe('UiSelect', () => {
     await TestBed.configureTestingModule({ imports: [Host] }).compileComponents();
   });
 
-  const render = async (): Promise<
-    [ReturnType<typeof TestBed.createComponent<Host>>, HTMLSelectElement]
-  > => {
+  const render = async () => {
     const fixture = TestBed.createComponent(Host);
     await fixture.whenStable();
-    return [fixture, fixture.nativeElement.querySelector('select') as HTMLSelectElement];
+    const root = fixture.nativeElement as HTMLElement;
+    return {
+      fixture,
+      trigger: root.querySelector('[role="combobox"]') as HTMLButtonElement,
+      root,
+    };
   };
 
-  it('renders the options and names the control', async () => {
-    const [, select] = await render();
-    expect(select.getAttribute('aria-label')).toBe('Status filter');
-    expect(Array.from(select.options).map((o) => o.textContent?.trim())).toEqual([
-      'Choose a status',
+  it('renders the combobox and names the control', async () => {
+    const { trigger } = await render();
+    expect(trigger.getAttribute('aria-label')).toBe('Status filter');
+    expect(trigger.textContent).toContain('Choose a status');
+  });
+
+  it('opens a shadowed panel of options, without a pickable placeholder', async () => {
+    const { trigger, root, fixture } = await render();
+    trigger.click();
+    await fixture.whenStable();
+
+    const list = root.querySelector('[role="listbox"]') as HTMLElement;
+    expect(list).toBeTruthy();
+    expect(list.className).toContain('shadow-toast');
+    expect(list.className).toContain('select-panel-in');
+    expect([...list.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim())).toEqual([
       'All statuses',
       'Overdue',
     ]);
   });
 
-  it('makes the placeholder unpickable so it cannot be submitted as a value', async () => {
-    const [, select] = await render();
-    expect(select.options[0].disabled).toBe(true);
-  });
-
   it('omits the placeholder row entirely when none is given', async () => {
-    const [fixture, select] = await render();
+    const { fixture, trigger, root } = await render();
     fixture.componentInstance.placeholder.set(undefined);
     await fixture.whenStable();
-    expect(select.options.length).toBe(2);
+    trigger.click();
+    await fixture.whenStable();
+    expect(root.querySelectorAll('[role="option"]').length).toBe(2);
   });
 
   it('writes the chosen value back to the model', async () => {
-    const [fixture, select] = await render();
-    select.value = 'overdue';
-    select.dispatchEvent(new Event('change'));
+    const { fixture, trigger, root } = await render();
+    trigger.click();
+    await fixture.whenStable();
+    const overdue = [...root.querySelectorAll('[role="option"]')].find((o) =>
+      o.textContent?.includes('Overdue'),
+    ) as HTMLElement;
+    overdue.click();
     await fixture.whenStable();
     expect(fixture.componentInstance.picked()).toBe('overdue');
+    expect(root.querySelector('[role="listbox"]')).toBeNull();
   });
 
   describe('with no placeholder', () => {
-    /**
-     * A native select always has something selected. With no placeholder row
-     * there is no option matching the default empty value, so the browser
-     * displays the first option while the model still reads '' — the consumer
-     * filters on '' for a control the user sees as set to "All statuses".
-     */
     it('adopts the first option when the value matches no option', async () => {
       const fixture = TestBed.createComponent(Host);
       fixture.componentInstance.placeholder.set(undefined);
       await fixture.whenStable();
-      const select = fixture.nativeElement.querySelector('select') as HTMLSelectElement;
+      const trigger = (fixture.nativeElement as HTMLElement).querySelector(
+        '[role="combobox"]',
+      ) as HTMLButtonElement;
 
       expect(fixture.componentInstance.picked()).toBe('all');
-      expect(select.selectedIndex).toBe(0);
-      expect(select.value).toBe('all');
+      expect(trigger.textContent).toContain('All statuses');
     });
 
     it('leaves a value that does match an option alone', async () => {
@@ -88,9 +99,9 @@ describe('UiSelect', () => {
       await fixture.whenStable();
 
       expect(fixture.componentInstance.picked()).toBe('overdue');
-      expect((fixture.nativeElement.querySelector('select') as HTMLSelectElement).value).toBe(
-        'overdue',
-      );
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('[role="combobox"]')?.textContent,
+      ).toContain('Overdue');
     });
 
     it('re-adopts when the option list changes under a now-stale value', async () => {
@@ -108,9 +119,23 @@ describe('UiSelect', () => {
   });
 
   it('keeps an unmatched value when a placeholder exists to represent it', async () => {
-    // The placeholder is the matching option, so '' is a legitimate state here.
-    const [fixture, select] = await render();
+    const { fixture, trigger } = await render();
     expect(fixture.componentInstance.picked()).toBe('');
-    expect(select.value).toBe('');
+    expect(trigger.textContent).toContain('Choose a status');
+  });
+
+  it('closes the panel on Escape', async () => {
+    const { trigger, root, fixture } = await render();
+    trigger.click();
+    await fixture.whenStable();
+    expect(root.querySelector('[role="listbox"]')).toBeTruthy();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
+    expect(root.querySelector('[role="listbox"]')).toBeNull();
+  });
+
+  it('destroys without throwing after scroll listeners are attached', async () => {
+    const { fixture } = await render();
+    expect(() => fixture.destroy()).not.toThrow();
   });
 });
