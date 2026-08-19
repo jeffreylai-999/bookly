@@ -2,9 +2,10 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { form, FormField, email, required, submit } from '@angular/forms/signals';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { LucideAngularModule } from 'lucide-angular';
 
 import { AuthService, type LoginError } from '../core/auth';
-import { UiBtn, UiField } from '../ui';
+import { ToastService, UiBtn, UiField } from '../ui';
 
 interface LoginModel {
   email: string;
@@ -24,7 +25,7 @@ const LOGIN_ERROR_KEYS: Record<LoginError, string> = {
 
 @Component({
   selector: 'app-login',
-  imports: [FormField, TranslocoPipe, UiBtn, UiField],
+  imports: [FormField, LucideAngularModule, TranslocoPipe, UiBtn, UiField],
   template: `
     <main
       id="main-content"
@@ -40,7 +41,7 @@ const LOGIN_ERROR_KEYS: Record<LoginError, string> = {
         </h1>
         <p class="mt-2 text-sm text-ink-muted">{{ 'auth.login.subtitle' | transloco }}</p>
 
-        <form class="mt-8 flex flex-col gap-5" (submit)="onSubmit($event)" novalidate>
+        <form class="mt-8 flex flex-col gap-3" (submit)="onSubmit($event)" novalidate>
           <!--
             The error signals hold i18n keys, not text — the pipe resolves them
             so a catalog that lands after first paint still renders, and a lang
@@ -75,20 +76,35 @@ const LOGIN_ERROR_KEYS: Record<LoginError, string> = {
             [required]="true"
             #passwordField
           >
-            <input
-              type="password"
-              autocomplete="current-password"
-              [id]="passwordField.controlId"
-              [attr.aria-describedby]="passwordField.describedBy()"
-              [attr.aria-invalid]="passwordErrorText ? true : null"
-              [formField]="loginForm.password"
-              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus-ring focus:border-brand"
-            />
+            <div class="relative">
+              <input
+                [type]="passwordVisible() ? 'text' : 'password'"
+                autocomplete="current-password"
+                [id]="passwordField.controlId"
+                [attr.aria-describedby]="passwordField.describedBy()"
+                [attr.aria-invalid]="passwordErrorText ? true : null"
+                [formField]="loginForm.password"
+                class="w-full rounded-lg border border-line bg-surface py-2.5 pl-3.5 pr-11 text-sm text-ink focus-ring focus:border-brand"
+              />
+              <button
+                type="button"
+                class="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-ink-muted transition-colors duration-100 hover:bg-control-hover hover:text-ink-soft focus-ring"
+                [attr.aria-label]="
+                  (passwordVisible() ? 'auth.login.hidePassword' : 'auth.login.showPassword')
+                    | transloco
+                "
+                [attr.aria-pressed]="passwordVisible()"
+                (click)="passwordVisible.update((visible) => !visible)"
+              >
+                <lucide-angular
+                  [name]="passwordVisible() ? 'eye-off' : 'eye'"
+                  [size]="16"
+                  [strokeWidth]="1.75"
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
           </ui-field>
-
-          @if (formError(); as message) {
-            <p role="alert" class="text-sm font-semibold text-danger">{{ message }}</p>
-          }
 
           <button
             uiBtn
@@ -111,9 +127,10 @@ export class Login {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly transloco = inject(TranslocoService);
+  private readonly toast = inject(ToastService);
 
   protected readonly submitting = signal(false);
-  protected readonly formError = signal<string | null>(null);
+  protected readonly passwordVisible = signal(false);
 
   private readonly model = signal<LoginModel>({ email: '', password: '' });
   protected readonly loginForm = form(this.model, (path) => {
@@ -147,7 +164,6 @@ export class Login {
 
   protected async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
-    this.formError.set(null);
 
     // `submit()` marks the form touched itself before checking validity, so
     // there is nothing to do with its return value here.
@@ -157,7 +173,7 @@ export class Login {
         const { email, password } = this.model();
         const { error } = await this.auth.login(email, password);
         if (error) {
-          this.formError.set(this.transloco.translate(LOGIN_ERROR_KEYS[error]));
+          this.toast.error(this.transloco.translate(LOGIN_ERROR_KEYS[error]));
           return;
         }
         await this.router.navigateByUrl('/');

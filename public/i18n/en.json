@@ -11,6 +11,8 @@
       "subtitle": "Staff desk access for Bookly.",
       "email": "Email",
       "password": "Password",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
       "submit": "Sign in",
       "submitting": "Signing in…",
       "errors": {
