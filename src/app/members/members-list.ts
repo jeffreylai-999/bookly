@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { form, FormField, pattern, required, submit } from '@angular/forms/signals';
+import { email, form, FormField, maxLength, required, submit } from '@angular/forms/signals';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 
@@ -23,10 +23,15 @@ import {
   UiTable,
   type BadgeTone,
 } from '../ui';
+import {
+  generateMemberBarcodeSuffix,
+  stripMemberCardPrefix,
+  withMemberCardPrefix,
+} from './members.barcodes';
 import { MembersStore } from './members.store';
 import {
-  MEMBER_CARD_PATTERN,
   MEMBER_CARD_PREFIX,
+  MEMBER_PHONE_MAX_LENGTH,
   statusBadgeTone,
   type MemberFormValue,
   type MemberListItem,
@@ -216,13 +221,15 @@ const STATUS_LABEL_KEYS: Record<MemberStatus, string> = {
       [subtitle]="'members.form.subtitle' | transloco"
       [closeLabel]="'members.form.close' | transloco"
     >
-      <form id="member-form" class="flex flex-col gap-4" (submit)="onFormSubmit($event)" novalidate>
+      <form id="member-form" class="flex flex-col gap-2" (submit)="onFormSubmit($event)" novalidate>
         @let nameKey = nameErrorKey();
         @let nameErrorText = nameKey ? (nameKey | transloco) : undefined;
         @let typeKey = typeErrorKey();
         @let typeErrorText = typeKey ? (typeKey | transloco) : undefined;
         @let barcodeKey = barcodeErrorKey();
         @let barcodeErrorText = barcodeKey ? (barcodeKey | transloco) : undefined;
+        @let emailKey = emailErrorKey();
+        @let emailErrorText = emailKey ? (emailKey | transloco) : undefined;
 
         <ui-field
           [label]="'members.form.name' | transloco"
@@ -247,18 +254,15 @@ const STATUS_LABEL_KEYS: Record<MemberStatus, string> = {
           [required]="true"
           #typeField
         >
-          <select
-            [id]="typeField.controlId"
-            [attr.aria-describedby]="typeField.describedBy()"
-            [attr.aria-invalid]="typeErrorText ? true : null"
-            [formField]="memberForm.memberTypeId"
-            class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus-ring focus:border-brand"
-          >
-            <option value="">{{ 'members.form.memberTypePlaceholder' | transloco }}</option>
-            @for (type of store.memberTypes(); track type.id) {
-              <option [value]="type.id">{{ type.name }}</option>
-            }
-          </select>
+          <ui-select
+            [controlId]="typeField.controlId"
+            [describedBy]="typeField.describedBy()"
+            [invalid]="!!typeErrorText"
+            [options]="memberTypeOptions()"
+            [placeholder]="'members.form.memberTypePlaceholder' | transloco"
+            [value]="memberForm.memberTypeId().value()"
+            (valueChange)="onMemberTypeChange($event)"
+          />
         </ui-field>
 
         <ui-field
@@ -268,24 +272,40 @@ const STATUS_LABEL_KEYS: Record<MemberStatus, string> = {
           [required]="true"
           #barcodeField
         >
-          <input
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            [id]="barcodeField.controlId"
-            [attr.aria-describedby]="barcodeField.describedBy()"
-            [attr.aria-invalid]="barcodeErrorText ? true : null"
-            [formField]="memberForm.cardBarcode"
-            class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 font-mono text-sm text-ink focus-ring focus:border-brand"
-          />
+          <div
+            class="flex overflow-hidden rounded-lg border border-line bg-surface transition-colors duration-100 focus-within:border-brand has-[:focus-visible]:shadow-[0_0_0_2px_var(--color-surface),0_0_0_4px_var(--color-brand-strong)]"
+          >
+            <span
+              aria-hidden="true"
+              class="flex items-center border-r border-line bg-canvas px-3.5 font-mono text-sm text-ink-muted"
+            >
+              {{ memberCardPrefix }}
+            </span>
+            <input
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              [id]="barcodeField.controlId"
+              [attr.aria-describedby]="barcodeField.describedBy()"
+              [attr.aria-invalid]="barcodeErrorText ? true : null"
+              [formField]="memberForm.cardBarcode"
+              (input)="stripPastedCardPrefix($event)"
+              class="min-w-0 flex-1 border-0 bg-transparent px-3.5 py-2.5 font-mono text-sm text-ink outline-none"
+            />
+          </div>
         </ui-field>
 
-        <ui-field [label]="'members.form.email' | transloco" #emailField>
+        <ui-field
+          [label]="'members.form.email' | transloco"
+          [error]="emailErrorText"
+          #emailField
+        >
           <input
             type="email"
-            autocomplete="email"
+            autocomplete="off"
             [id]="emailField.controlId"
             [attr.aria-describedby]="emailField.describedBy()"
+            [attr.aria-invalid]="emailErrorText ? true : null"
             [formField]="memberForm.email"
             class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus-ring focus:border-brand"
           />
@@ -294,10 +314,13 @@ const STATUS_LABEL_KEYS: Record<MemberStatus, string> = {
         <ui-field [label]="'members.form.phone' | transloco" #phoneField>
           <input
             type="tel"
+            inputmode="tel"
             autocomplete="tel"
             [id]="phoneField.controlId"
             [attr.aria-describedby]="phoneField.describedBy()"
             [formField]="memberForm.phone"
+            (keydown)="rejectLetterPhoneKeys($event)"
+            (input)="stripLettersFromPhone($event)"
             class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus-ring focus:border-brand"
           />
         </ui-field>
@@ -334,6 +357,7 @@ export class MembersList {
   private readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
   private readonly transloco = inject(TranslocoService);
+  protected readonly memberCardPrefix = MEMBER_CARD_PREFIX;
 
   protected readonly formOpen = signal(false);
   protected readonly editingId = signal<string | null>(null);
@@ -344,14 +368,15 @@ export class MembersList {
     memberTypeId: '',
     email: '',
     phone: '',
-    cardBarcode: `${MEMBER_CARD_PREFIX}`,
+    cardBarcode: generateMemberBarcodeSuffix(),
   });
 
   protected readonly memberForm = form(this.model, (path) => {
     required(path.name);
     required(path.memberTypeId);
     required(path.cardBarcode);
-    pattern(path.cardBarcode, MEMBER_CARD_PATTERN);
+    email(path.email);
+    maxLength(path.phone, MEMBER_PHONE_MAX_LENGTH);
   });
 
   protected readonly statusBadgeTone = statusBadgeTone;
@@ -364,6 +389,10 @@ export class MembersList {
       label: this.transloco.translate(STATUS_LABEL_KEYS[status]),
     })),
   ]);
+
+  protected readonly memberTypeOptions = computed<SelectOption[]>(() =>
+    this.store.memberTypes().map((type) => ({ value: type.id, label: type.name })),
+  );
 
   protected readonly columns = computed<TableColumn<MemberListItem>[]>(() => [
     {
@@ -420,9 +449,13 @@ export class MembersList {
   protected readonly barcodeErrorKey = computed(() => {
     const field = this.memberForm.cardBarcode();
     if (!field.touched() || !field.invalid()) return undefined;
-    return field.getError('pattern')
-      ? 'members.form.errors.cardBarcodePattern'
-      : 'members.form.errors.cardBarcodeRequired';
+    return 'members.form.errors.cardBarcodeRequired';
+  });
+
+  protected readonly emailErrorKey = computed(() => {
+    const field = this.memberForm.email();
+    if (!field.touched() || !field.invalid()) return undefined;
+    return 'members.form.errors.emailInvalid';
   });
 
   constructor() {
@@ -478,6 +511,41 @@ export class MembersList {
     }
   }
 
+  protected onMemberTypeChange(id: string): void {
+    this.model.update((current) => ({ ...current, memberTypeId: id }));
+    this.memberForm.memberTypeId().markAsTouched();
+  }
+
+  protected rejectLetterPhoneKeys(event: KeyboardEvent): void {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key.length !== 1) return;
+    if (/[a-zA-Z]/i.test(event.key)) {
+      event.preventDefault();
+      return;
+    }
+    const el = event.target as HTMLInputElement;
+    const selected = (el.selectionEnd ?? 0) - (el.selectionStart ?? 0);
+    if (el.value.length - selected >= MEMBER_PHONE_MAX_LENGTH) {
+      event.preventDefault();
+    }
+  }
+
+  protected stripLettersFromPhone(event: Event): void {
+    const el = event.target as HTMLInputElement;
+    const next = el.value.replace(/[a-zA-Z]/g, '').slice(0, MEMBER_PHONE_MAX_LENGTH);
+    if (next === el.value) return;
+    el.value = next;
+    this.model.update((current) => ({ ...current, phone: next }));
+  }
+
+  protected stripPastedCardPrefix(event: Event): void {
+    const el = event.target as HTMLInputElement;
+    const next = stripMemberCardPrefix(el.value);
+    if (next === el.value) return;
+    el.value = next;
+    this.model.update((current) => ({ ...current, cardBarcode: next }));
+  }
+
   protected openCreate(): void {
     this.editingId.set(null);
     this.formError.set(null);
@@ -486,7 +554,7 @@ export class MembersList {
       memberTypeId: this.store.memberTypes()[0]?.id ?? '',
       email: '',
       phone: '',
-      cardBarcode: `${MEMBER_CARD_PREFIX}`,
+      cardBarcode: generateMemberBarcodeSuffix(),
     });
     this.formOpen.set(true);
   }
@@ -499,7 +567,7 @@ export class MembersList {
       memberTypeId: row.member_type_id,
       email: row.email ?? '',
       phone: row.phone ?? '',
-      cardBarcode: row.card_barcode,
+      cardBarcode: stripMemberCardPrefix(row.card_barcode),
     });
     this.formOpen.set(true);
   }
@@ -523,10 +591,14 @@ export class MembersList {
 
     await submit(this.memberForm, async () => {
       const value = this.model();
+      const payload: MemberFormValue = {
+        ...value,
+        cardBarcode: withMemberCardPrefix(value.cardBarcode),
+      };
       const editing = this.editingId();
       const result = editing
-        ? await this.store.updateMember(editing, value)
-        : await this.store.createMember(value);
+        ? await this.store.updateMember(editing, payload)
+        : await this.store.createMember(payload);
       if (result.error === 'load_failed') {
         this.formOpen.set(false);
         this.toast.error(this.transloco.translate('members.errors.loadFailed'));
