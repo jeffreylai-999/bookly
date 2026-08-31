@@ -69,7 +69,6 @@ let nextSelectId = 0;
       <ul
         #panel
         role="listbox"
-        popover="manual"
         [id]="listId"
         [attr.popover]="canPopover ? 'manual' : null"
         [attr.aria-label]="ariaLabel() ?? null"
