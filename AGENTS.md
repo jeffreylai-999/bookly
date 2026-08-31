@@ -18,6 +18,7 @@ Supabase CLI in Docker.
 | Supabase stack | Local Postgres/Auth/REST/Studio in Docker | `pnpm supabase:start` (stop: `pnpm supabase:stop`, keys: `pnpm exec supabase status`) | Required for anything past the login screen. Migrations in `supabase/migrations` + `supabase/seed.sql` apply automatically on first start. |
 
 Lint/test/build (details in `package.json` / `README.md`):
+
 - Tests: `pnpm test` (Angular `unit-test` builder → Vitest, jsdom). Runs headless; `CI=true` avoids watch mode. ~180 specs.
 - Build: `pnpm build` (production) — SSR build into `dist/bookly`.
 - Lint: there is **no** `lint` script and no ESLint config. Formatting is Prettier only
