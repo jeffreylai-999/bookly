@@ -65,6 +65,12 @@ export function addMonths(date: Date, count: number): Date {
   return new Date(date.getFullYear(), date.getMonth() + count, 1);
 }
 
+function subtractMonthsClamped(date: Date, months: number): Date {
+  const targetMonth = date.getMonth() - months;
+  const lastDayOfTargetMonth = new Date(date.getFullYear(), targetMonth + 1, 0).getDate();
+  return new Date(date.getFullYear(), targetMonth, Math.min(date.getDate(), lastDayOfTargetMonth));
+}
+
 export function rangeForPreset(id: DateRangePresetId, today: Date): DateRangeValue {
   const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   switch (id) {
@@ -74,12 +80,10 @@ export function rangeForPreset(id: DateRangePresetId, today: Date): DateRangeVal
       return { from: toIsoDate(start), to: toIsoDate(end) };
     }
     case 'lastMonth': {
-      const start = new Date(end.getFullYear(), end.getMonth() - 1, end.getDate());
-      return { from: toIsoDate(start), to: toIsoDate(end) };
+      return { from: toIsoDate(subtractMonthsClamped(end, 1)), to: toIsoDate(end) };
     }
     case 'last3Months': {
-      const start = new Date(end.getFullYear(), end.getMonth() - 3, end.getDate());
-      return { from: toIsoDate(start), to: toIsoDate(end) };
+      return { from: toIsoDate(subtractMonthsClamped(end, 3)), to: toIsoDate(end) };
     }
     default: {
       const _exhaustive: never = id;
@@ -169,7 +173,6 @@ export function monthGrid(month: Date): CalendarDay[] {
       <div
         #panel
         role="dialog"
-        popover="manual"
         [id]="panelId"
         [attr.popover]="canPopover ? 'manual' : null"
         [attr.aria-label]="dialogLabel()"
