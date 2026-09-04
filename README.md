@@ -13,7 +13,7 @@ A **staff-facing library desk tool** for circulation, catalog management, member
 ## Prerequisites
 
 - **Node.js** ≥ 22.22.3 (or 24 / 26)
-- **pnpm** 10.x (`npm install -g pnpm`) — repo pins `pnpm@10.11.0` via `packageManager`
+- **pnpm** 10.x (`npm install -g pnpm`) — repo pins `pnpm@10.34.5` via `packageManager`
 - **Docker** (required to run the local Supabase stack)
 
 ## Getting Started
@@ -138,10 +138,33 @@ On pushes and pull requests to `main`, GitHub Actions runs:
 
 Workflows live in `.github/workflows/`.
 
+## Deploy
+
+GitHub Actions does not deploy. After the checks above pass, hosts pick up `main` via their Git integrations.
+
+**Vercel (web app)**
+
+1. Import `jeffreylai-999/bookly` at [vercel.com/new](https://vercel.com/new). Production branch: `main`.
+2. Confirm Node.js is **24.x** (`package.json#engines`). Framework preset: Angular.
+3. Leave Install / Build as defaults (`pnpm install`, `pnpm build`). SSR is wired by `vercel.json` + `api/index.js`.
+4. Merge to `main`. Confirm the deployment serves `/` through the serverless function, not a static `index.html` shell.
+
+Pin `packageManager` to pnpm 10.x. pnpm 12’s `bin/pnpm` is a placeholder unless install scripts run, which breaks Vercel’s provisioner.
+
+**Supabase (database)**
+
+1. In the hosted project: **Project Settings → Integrations → GitHub**. Authorize and select this repo.
+2. Working directory: `.` (`supabase/` is at the repo root).
+3. Enable **Deploy to production**. Leave **Automatic branching** off unless you want a preview database per PR.
+4. Before the first deploy, confirm remote migration history matches `supabase/migrations` (`supabase migration list` against that project).
+5. Merge to `main`. New migrations apply automatically. Auth settings and `seed.sql` do **not** — configure those in the dashboard.
+
 ## Project Structure
 
 ```
 src/                  Angular application source
+api/                  Vercel serverless entry (imports the SSR bundle)
+vercel.json           Vercel rewrites + function includeFiles
 supabase/
   migrations/         SQL migration files (applied in order)
   seed.sql            Reference/catalog seed data
