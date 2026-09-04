@@ -12,7 +12,7 @@ A **staff-facing library desk tool** for circulation, catalog management, member
 
 ## Prerequisites
 
-- **Node.js** ≥ 22.22.3 (or 24 / 26)
+- **Node.js** ≥ 24.15.0 (repo pins `engines.node` to this via `package.json`)
 - **pnpm** 10.x (`npm install -g pnpm`) — repo pins `pnpm@10.34.5` via `packageManager`
 - **Docker** (required to run the local Supabase stack)
 
