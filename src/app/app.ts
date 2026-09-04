@@ -1,6 +1,8 @@
-import { Component, computed, inject } from '@angular/core';
+import { afterNextRender, Component, computed, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { inject as injectAnalytics } from '@vercel/analytics';
+import { injectSpeedInsights } from '@vercel/speed-insights';
 
 import { UiToastHost, type ToastType } from './ui';
 
@@ -11,6 +13,13 @@ import { UiToastHost, type ToastType } from './ui';
 })
 export class App {
   private readonly transloco = inject(TranslocoService);
+
+  constructor() {
+    afterNextRender(() => {
+      injectAnalytics();
+      injectSpeedInsights();
+    });
+  }
 
   protected readonly toastTitles = computed<Record<ToastType, string>>(() => {
     const lang = this.transloco.activeLang();
